@@ -5,10 +5,10 @@ export const siteConfig = {
   locales: ['zh', 'en'] as const,
   defaultLocale: 'zh' as const,
   nav: [
-    {key: 'articles', href: '/articles'},
-    {key: 'notes', href: '/notes'},
-    {key: 'projects', href: '/projects'},
-    {key: 'about', href: '/about'}
+    {key: 'articles', href: '/articles', iconName: 'icon-blog'},
+    {key: 'notes', href: '/notes', iconName: 'icon-book'},
+    {key: 'projects', href: '/projects', iconName: 'icon-project'},
+    {key: 'about', href: '/about', iconName: 'icon-me'}
   ],
   social: {
     github: 'https://github.com/',

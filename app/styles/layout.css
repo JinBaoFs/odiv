@@ -15,7 +15,7 @@
   backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .content {
@@ -28,5 +28,5 @@
   max-width: 960px;
   margin: 0 auto;
   display: grid;
-  gap: 24px;
+  gap: 20px;
 }

@@ -14,22 +14,6 @@
     "nav": {"articles": "Blog", "notes": "Notes", "projects": "Projects", "about": "About"}
   },
   "Home": {
-    "eyebrow": "Next.js 15 + TypeScript",
-    "title": "A multilingual starter for a personal blog",
-    "description": "The left menu stays fixed while the right content pane scrolls independently, with next-intl for i18n, next-themes for color mode, and extendable theme palette config.",
-    "primaryCta": "Browse article section",
-    "secondaryCta": "See theme config",
-    "articlesTitle": "Article card module",
-    "articlesDesc": "This area is prepared for post lists, tags, publish dates and reading time, making it easy to connect Markdown, a CMS or a database later.",
-    "themeTitle": "Theme system",
-    "themeDesc": "Two sample palettes are included, and you can keep adding more branded themes through config or an API endpoint.",
-    "themeOcean": "Good for calm, technical and writing-focused blogs.",
-    "themeViolet": "Good for creative portfolios and illustration-driven blogs.",
-    "posts": {
-      "0": {"title": "Designing a durable blog information architecture", "excerpt": "Separate navigation, categories, tags and collections so your content stays maintainable.", "tag": "Architecture", "date": "2026-06-16", "readingTime": "6 min"},
-      "1": {"title": "Structuring multilingual pages with the App Router", "excerpt": "A shared [locale] route segment keeps your home, article and about pages consistent.", "tag": "i18n", "date": "2026-06-12", "readingTime": "8 min"},
-      "2": {"title": "How to split theme color tokens", "excerpt": "Start with background, card, border, text, primary and soft-primary tokens.", "tag": "Design Tokens", "date": "2026-06-10", "readingTime": "5 min"}
-    }
   },
   "Articles": {"eyebrow": "Articles", "title": "Article archive", "description": "Connect this section to MDX, Contentlayer, Notion API or any headless CMS."},
   "Projects": {"eyebrow": "Projects", "title": "Project showcase", "description": "Use this area for case studies, experiments, open-source work and talks."},

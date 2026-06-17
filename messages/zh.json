@@ -1,10 +1,10 @@
 {
   "Common": {"language": "语言"},
   "Sidebar": {
-    "title": "我的数字花园",
-    "description": "支持多语言、主题配置、固定侧栏与流畅阅读体验。",
+    "title": "个人博客",
+    "description": "oDiv的个人博客,一名多年经验的web3前端开发者。",
     "aboutLabel": "关于我",
-    "bio": "这里放一两句个人简介，描述你在写什么、关注什么。",
+    "bio": "我是oDiv，一名Web3前端开发者。这是我的个人博客。🌱",
     "connectLabel": "保持联系",
     "connect": {
       "email": "邮件订阅",
@@ -14,22 +14,6 @@
     "nav": {"articles": "博客", "notes": "笔记", "projects": "项目", "about": "关于"}
   },
   "Home": {
-    "eyebrow": "Next.js 15 + TypeScript",
-    "title": "一个适合个人博客的多语言基础框架",
-    "description": "左侧固定菜单，右侧独立滚动内容区；内置 next-intl 国际化、next-themes 深浅色模式，以及可扩展的主题色配置。",
-    "primaryCta": "查看文章模块",
-    "secondaryCta": "查看主题配置",
-    "articlesTitle": "文章卡片模块",
-    "articlesDesc": "这里预留文章列表、标签、发布日期与阅读时长，后续接入 Markdown、CMS 或数据库都比较顺手。",
-    "themeTitle": "主题系统",
-    "themeDesc": "先提供两套示例色板，你可以继续扩展更多品牌主题，并通过接口或环境变量进行切换。",
-    "themeOcean": "适合清爽、技术感、写作型博客。",
-    "themeViolet": "适合偏创意、作品集、插画风格博客。",
-    "posts": {
-      "0": {"title": "如何设计一套稳定的博客信息架构", "excerpt": "把导航、分类、标签和专题关系拆开，文章会更容易维护。", "tag": "架构", "date": "2026-06-16", "readingTime": "6 分钟"},
-      "1": {"title": "用 App Router 组织多语言博客页面", "excerpt": "通过 [locale] 路由段统一承载首页、文章页、关于页，结构更清晰。", "tag": "i18n", "date": "2026-06-12", "readingTime": "8 分钟"},
-      "2": {"title": "主题色变量应该如何拆分", "excerpt": "建议最少拆出背景、卡片、边框、文字、主色与主色弱化色。", "tag": "Design Tokens", "date": "2026-06-10", "readingTime": "5 分钟"}
-    }
   },
   "Articles": {"eyebrow": "Articles", "title": "文章归档", "description": "这里可以接入 MDX、Contentlayer、Notion API 或 Headless CMS。"},
   "Projects": {"eyebrow": "Projects", "title": "项目展示", "description": "适合放案例、实验作品、开源项目与演讲分享。"},

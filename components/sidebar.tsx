@@ -4,6 +4,7 @@ import {Link} from '@/i18n/navigation';
 import {siteConfig} from '@/config/site';
 import {LocaleSwitcher} from './locale-switcher';
 import {ThemeToggle} from './theme-toggle';
+import { Iconfont } from './icon-font';
 import Image from 'next/image';
 
 const icons = {
@@ -19,7 +20,7 @@ export async function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebarHeader">
-        <div className="sidebarBrand">
+        <Link href="/" className="sidebarBrand">
           <Image
             src="/images/logo.png"  // 注意这里是以 / 开头
             alt="Hero illustration"
@@ -28,7 +29,7 @@ export async function Sidebar() {
             priority
           />
           <span className="siteNameText">{siteConfig.name}</span>
-        </div>
+        </Link>
         <div className="toolbar">
           <LocaleSwitcher />
           <ThemeToggle />
@@ -42,10 +43,9 @@ export async function Sidebar() {
 
       <nav className="navList" aria-label="Primary navigation">
         {siteConfig.nav.map((item) => {
-          const Icon = icons[item.key as keyof typeof icons];
           return (
             <Link key={item.key} href={item.href} className="navItem">
-              <Icon size={16} />
+              <Iconfont name={item.iconName} size={20} />
               <span>{t(`nav.${item.key}`)}</span>
             </Link>
           );
