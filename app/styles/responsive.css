@@ -1,0 +1,23 @@
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: relative;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .content {
+    height: auto;
+    overflow: visible;
+    padding: 20px;
+  }
+
+  .grid,
+  .themePreview {
+    grid-template-columns: 1fr;
+  }
+}

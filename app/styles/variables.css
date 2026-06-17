@@ -1,0 +1,31 @@
+@import url('https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&f[]=zodiak@400,700&display=swap');
+
+:root {
+  --font-body: 'General Sans', sans-serif;
+  --font-display: 'Zodiak', serif;
+  --radius: 24px;
+  --sidebar-width: 320px;
+}
+
+:root,
+html.light {
+  --background: #f6f8fb;
+  --surface: #ffffff;
+  --surface-soft: #eef4f7;
+  --border: #d8e3ea;
+  --text: #17212b;
+  --text-muted: #5d6b78;
+  --primary: #c892e7;
+  --primary-soft: #d8f3ef;
+}
+
+html.dark {
+  --background: #1c1c20;
+  --surface: #121a2b;
+  --surface-soft: #182235;
+  --border: #2b2b2c;
+  --text: #ebf2ff;
+  --text-muted: #93a4bf;
+  --primary: #c892e7;
+  --primary-soft: #153e3a;
+}
