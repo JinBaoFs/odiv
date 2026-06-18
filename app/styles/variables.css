@@ -10,22 +10,26 @@
 :root,
 html.light {
   --background: #f6f8fb;
+  --background-02: #ededed;
   --surface: #ffffff;
   --surface-soft: #eef4f7;
   --border: #d8e3ea;
   --text: #17212b;
   --text-muted: #5d6b78;
-  --primary: #c892e7;
+  --text03: #a19c9c;
+  --primary: #3aba96;
   --primary-soft: #d8f3ef;
 }
 
 html.dark {
   --background: #1c1c20;
+  --background-02: #25252b;
   --surface: #121a2b;
   --surface-soft: #182235;
   --border: #2b2b2c;
   --text: #ebf2ff;
-  --text-muted: #93a4bf;
-  --primary: #c892e7;
-  --primary-soft: #153e3a;
+  --text-muted: #b3b9c5;
+  --text03: #808081;
+  --primary: #1ee9c7;
+  --primary-soft: #1c1c20;
 }

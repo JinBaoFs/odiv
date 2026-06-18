@@ -11,10 +11,8 @@
 }
 
 .hero,
-.panel,
 .articleCard {
   border: 1px solid var(--border);
-  background: var(--surface);
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.06);
 }
@@ -163,10 +161,35 @@
   gap: 20px;
 }
 
-.icon {
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.15em;
-  fill: currentColor;
-  overflow: hidden;
+.o-title{
+  display: flex;
+  align-items: center;
 }
+
+.o-title-text{
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text)
+}
+
+.o-desc{
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.two-line-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+
+

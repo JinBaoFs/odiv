@@ -1,5 +1,7 @@
 {
-  "Common": {"language": "Language"},
+  "Common": {
+    "language": "Language"
+  },
   "Sidebar": {
     "title": "My Digital Garden",
     "description": "A multilingual blog shell with theme tokens, fixed sidebar and smooth reading flow.",
@@ -11,11 +13,28 @@
       "bluesky": "Bluesky",
       "rss": "RSS feed"
     },
-    "nav": {"articles": "Blog", "notes": "Notes", "projects": "Projects", "about": "About"}
+    "nav": {
+      "articles": "Blog",
+      "notes": "Notes",
+      "projects": "Projects",
+      "about": "About"
+    }
   },
-  "Home": {
+  "Home": {},
+  "Articles": {
+    "eyebrow": "Articles",
+    "title": "Article archive",
+    "description": "Connect this section to MDX, Contentlayer, Notion API or any headless CMS."
   },
-  "Articles": {"eyebrow": "Articles", "title": "Article archive", "description": "Connect this section to MDX, Contentlayer, Notion API or any headless CMS."},
-  "Projects": {"eyebrow": "Projects", "title": "Project showcase", "description": "Use this area for case studies, experiments, open-source work and talks."},
-  "About": {"eyebrow": "About", "title": "About me", "description": "Use this page for your bio, skill tags, contact details and résumé summary."}
+  "Projects": {
+    "eyebrow": "Projects",
+    "title": "Project",
+    "description": "As a front-end developer with years of experience in both the Web2 and Web3 sectors, I have accumulated extensive project experience.",
+    "source": "Source"
+  },
+  "About": {
+    "eyebrow": "About",
+    "title": "About me",
+    "description": "Use this page for your bio, skill tags, contact details and résumé summary."
+  }
 }

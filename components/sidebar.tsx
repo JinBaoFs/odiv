@@ -36,12 +36,12 @@ export async function Sidebar() {
         </div>
       </div>
 
-      <div className="sidebarSection">
+      <div className="sidebarSection o-hide">
         <p className="sectionLabel">{t('aboutLabel')}</p>
         <p className="sectionBody">{t('bio')}</p>
       </div>
 
-      <nav className="navList" aria-label="Primary navigation">
+      <nav className="navList o-hide" aria-label="Primary navigation ">
         {siteConfig.nav.map((item) => {
           return (
             <Link key={item.key} href={item.href} className="navItem">
@@ -52,7 +52,7 @@ export async function Sidebar() {
         })}
       </nav>
 
-      <div className="sidebarSection">
+      <div className="sidebarSection o-hide">
         <p className="sectionLabel">{t('connectLabel')}</p>
         <div className="connectList">
           <a href={siteConfig.social.email} className="connectLink">{t('connect.email')}</a>

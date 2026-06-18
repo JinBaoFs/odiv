@@ -1,5 +1,7 @@
 {
-  "Common": {"language": "语言"},
+  "Common": {
+    "language": "语言"
+  },
   "Sidebar": {
     "title": "个人博客",
     "description": "oDiv的个人博客,一名多年经验的web3前端开发者。",
@@ -11,11 +13,28 @@
       "bluesky": "蓝天",
       "rss": "RSS 订阅"
     },
-    "nav": {"articles": "博客", "notes": "笔记", "projects": "项目", "about": "关于"}
+    "nav": {
+      "articles": "博客",
+      "notes": "笔记",
+      "projects": "项目",
+      "about": "关于"
+    }
   },
-  "Home": {
+  "Home": {},
+  "Articles": {
+    "eyebrow": "Articles",
+    "title": "文章归档",
+    "description": "这里可以接入 MDX、Contentlayer、Notion API 或 Headless CMS。"
   },
-  "Articles": {"eyebrow": "Articles", "title": "文章归档", "description": "这里可以接入 MDX、Contentlayer、Notion API 或 Headless CMS。"},
-  "Projects": {"eyebrow": "Projects", "title": "项目展示", "description": "适合放案例、实验作品、开源项目与演讲分享。"},
-  "About": {"eyebrow": "About", "title": "关于我", "description": "用来放个人简介、技能标签、联系方式与履历摘要。"}
+  "Projects": {
+    "eyebrow": "Projects",
+    "title": "项目",
+    "description": "作为一名前端开发者，从事web2以及web3行业多年,所积累的项目经验!",
+    "source": "来源"
+  },
+  "About": {
+    "eyebrow": "About",
+    "title": "关于我",
+    "description": "用来放个人简介、技能标签、联系方式与履历摘要。"
+  }
 }
