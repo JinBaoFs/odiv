@@ -64,18 +64,6 @@
   gap: 10px;
 }
 
-.menuToggle {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: 1px var(--border) solid;
-  cursor: pointer;
-  color: var(--text);
-  padding: 4px;
-  transition: color 0.15s;
-}
-
 .menuToggle:hover {
   color: var(--primary);
 }

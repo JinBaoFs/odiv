@@ -197,5 +197,9 @@
   color: var(--text03)
 }
 
+.o-pc-hide{
+  display: none;
+}
+
 
 

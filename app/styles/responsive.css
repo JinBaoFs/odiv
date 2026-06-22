@@ -30,6 +30,14 @@
     display: none;
   }
 
+  .o-mb-hide{
+    display: none;
+  }
+
+  .o-pc-hide{
+    display: flex;
+  }
+
   .sidebarHeader{
     border-bottom: none;
     padding-bottom: 0;

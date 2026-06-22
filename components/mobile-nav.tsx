@@ -37,7 +37,7 @@ export function MobileNavToggle() {
 
   return (
     <button
-      className="iconButton"
+      className="iconButton o-pc-hide"
       onClick={() => setIsOpen(!isOpen)}
       aria-label={isOpen ? 'Close menu' : 'Open menu'}
       aria-expanded={isOpen}
