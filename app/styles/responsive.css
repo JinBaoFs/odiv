@@ -16,9 +16,11 @@
   }
 
   .content {
-    height: auto;
     overflow: visible;
-    padding: 20px;
+  }
+
+  .contentInner{
+    padding: 24px;
   }
 
   .grid,
