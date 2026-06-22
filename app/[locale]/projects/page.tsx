@@ -38,7 +38,7 @@ export default async function ProjectsPage() {
         },
         {
           type: 1,
-          btnText: 'Demo',
+          btnText: t('demo'),
           linkUrl: 'https://www.chaincatcher.com/',
         }
       ]

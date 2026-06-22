@@ -62,6 +62,4 @@
 .navList {
   display: grid;
   gap: 10px;
-  border-bottom: 1px var(--border) solid;
-  padding-bottom: 1.5rem;
 }

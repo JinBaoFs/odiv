@@ -4,9 +4,9 @@
   },
   "Sidebar": {
     "title": "My Digital Garden",
-    "description": "A multilingual blog shell with theme tokens, fixed sidebar and smooth reading flow.",
+    "description": "A multilingual blog shell with theme tokens, fixed sidebar and smooth reading flow.🌱",
     "aboutLabel": "About",
-    "bio": "A couple of sentences about you — what you write about and what you care about.",
+    "bio": "A couple of sentences about you — what you write about and what you care about.🌱",
     "connectLabel": "Stay connected",
     "connect": {
       "email": "Newsletter",
@@ -30,7 +30,8 @@
     "eyebrow": "Projects",
     "title": "Project",
     "description": "As a front-end developer with years of experience in both the Web2 and Web3 sectors, I have accumulated extensive project experience.",
-    "source": "Source"
+    "source": "Source",
+    "demo": "Demo"
   },
   "About": {
     "eyebrow": "About",

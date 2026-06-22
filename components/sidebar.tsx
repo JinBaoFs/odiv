@@ -51,15 +51,6 @@ export async function Sidebar() {
           );
         })}
       </nav>
-
-      <div className="sidebarSection o-hide">
-        <p className="sectionLabel">{t('connectLabel')}</p>
-        <div className="connectList">
-          <a href={siteConfig.social.email} className="connectLink">{t('connect.email')}</a>
-          <a href={siteConfig.social.bluesky} target="_blank" rel="noreferrer" className="connectLink">{t('connect.bluesky')}</a>
-          <a href={siteConfig.social.rss} className="connectLink">{t('connect.rss')}</a>
-        </div>
-      </div>
     </aside>
   );
 }
