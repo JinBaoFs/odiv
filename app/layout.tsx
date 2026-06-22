@@ -1,4 +1,5 @@
 import './globals.css';
+import "highlight.js/styles/atom-one-dark.css"
 import type {Metadata} from 'next';
 import {Providers} from '@/components/providers';
 import {siteConfig} from '@/config/site';

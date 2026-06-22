@@ -14,17 +14,17 @@
       "rss": "RSS 订阅"
     },
     "nav": {
-      "articles": "博客",
+      "blog": "博客",
       "notes": "笔记",
       "projects": "项目",
       "about": "关于"
     }
   },
   "Home": {},
-  "Articles": {
-    "eyebrow": "Articles",
-    "title": "文章归档",
-    "description": "这里可以接入 MDX、Contentlayer、Notion API 或 Headless CMS。"
+  "Blog": {
+    "eyebrow": "Blog",
+    "title": "博客",
+    "description": "博客描述..."
   },
   "Projects": {
     "eyebrow": "Projects",

@@ -193,5 +193,9 @@
   -ms-overflow-style: none;
 }
 
+.text03{
+  color: var(--text03)
+}
+
 
 

@@ -14,17 +14,17 @@
       "rss": "RSS feed"
     },
     "nav": {
-      "articles": "Blog",
+      "blog": "Blog",
       "notes": "Notes",
       "projects": "Projects",
       "about": "About"
     }
   },
   "Home": {},
-  "Articles": {
-    "eyebrow": "Articles",
-    "title": "Article archive",
-    "description": "Connect this section to MDX, Contentlayer, Notion API or any headless CMS."
+  "Blog": {
+    "eyebrow": "Blog",
+    "title": "Blog",
+    "description": "Blog Desc..."
   },
   "Projects": {
     "eyebrow": "Projects",

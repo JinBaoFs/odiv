@@ -34,4 +34,29 @@
     border-bottom: none;
     padding-bottom: 0;
   }
+
+  .menuToggle {
+    display: flex;
+  }
+
+  .mobileNavContent {
+    display: none;
+  }
+
+  .mobileNavContent.open {
+    display: block;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .mobileNavContent.open .sidebarSection {
+    display: grid;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .mobileNavContent.open .navList {
+    display: grid;
+  }
 }
