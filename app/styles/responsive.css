@@ -31,7 +31,7 @@
   }
 
   .o-mb-hide{
-    display: none;
+    display: none!important;
   }
 
   .o-pc-hide{

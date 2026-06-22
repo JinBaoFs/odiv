@@ -35,6 +35,8 @@
 
 .prose pre {
   margin: 1.25rem 0;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .prose pre code {

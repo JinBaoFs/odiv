@@ -32,7 +32,7 @@ export async function Sidebar() {
         </div>
 
         <MobileNavContent>
-          <div className="sidebarSection o-hide">
+          <div className="sidebarSection">
             <p className="sectionLabel">{t('aboutLabel')}</p>
             <p className="sectionBody">{t('bio')}</p>
           </div>

@@ -16,7 +16,7 @@ export default async function BlogPostPage({ params }: Props) {
     const { metadata, Content } = await getMdxPost(locale, slug)
 
     return (
-      <main className="container">
+      <main className="container overflow-hidden">
         <article className="prose max-w-none">
           <h1 className="mb-0">{metadata.title}</h1>
           <p className="text-sm text03">
