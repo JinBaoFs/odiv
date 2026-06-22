@@ -1,0 +1,515 @@
+export const metadata = {
+  title: "Understanding Destructuring, Spread, and Rest Parameters",
+  description:
+    "A personal note that ties together JavaScript destructuring, the spread operator, and rest parameters with practical examples.",
+  date: "2026-06-22",
+  slug: "understanding-destructuring-rest-spread",
+  tags: ["javascript", "es6", "destructuring", "spread", "rest"],
+  cover: "/images/js-destructuring-rest-spread.png",
+  draft: false,
+}
+
+Since ES2015, JavaScript has introduced several powerful features for working with objects and arrays: **destructuring assignment**, the **spread operator**, and **rest parameters**.
+
+At first glance, these syntaxes may seem unrelated, but they all revolve around the same idea: making it easier to **extract**, **combine**, and **transform** data structures.
+
+In this note, we'll:
+
+- Understand destructuring, spread, and rest in a unified way.
+- Go through practical examples you'll use frequently.
+- Highlight some common pitfalls, such as shallow copying and property overwrites.
+
+---
+
+## 1. Destructuring Assignment
+
+Destructuring assignment allows you to **extract values from objects or arrays and assign them directly to variables**.
+
+### 1.1 Object Destructuring
+
+Consider the following object:
+
+```js
+const note = {
+  id: 1,
+  title: "My first note",
+  date: "01/01/1970",
+}
+````
+
+Traditionally, you'd write:
+
+```js
+const id = note.id
+const title = note.title
+const date = note.date
+```
+
+With object destructuring:
+
+```js
+const { id, title, date } = note
+
+console.log(id) // 1
+console.log(title) // "My first note"
+console.log(date) // "01/01/1970"
+```
+
+**Note:** Destructuring does not modify the original object.
+
+#### Renaming Variables During Destructuring
+
+Sometimes you want a different variable name:
+
+```js
+const { id: noteId, title, date } = note
+
+console.log(noteId) // 1
+```
+
+Here, `noteId` receives the value of `note.id`.
+
+#### Destructuring Nested Objects
+
+Let's add an `author` object:
+
+```js
+const note = {
+  id: 1,
+  title: "My first note",
+  date: "01/01/1970",
+  author: {
+    firstName: "Sherlock",
+    lastName: "Holmes",
+  },
+}
+```
+
+You can destructure nested properties directly:
+
+```js
+const {
+  id,
+  title,
+  date,
+  author: { firstName, lastName },
+} = note
+
+console.log(`${firstName} ${lastName}`)
+// "Sherlock Holmes"
+```
+
+If you want both the entire `author` object and its properties:
+
+```js
+const {
+  author,
+  author: { firstName, lastName },
+} = note
+
+console.log(author)
+// { firstName: "Sherlock", lastName: "Holmes" }
+```
+
+#### Destructuring Primitive Values
+
+Even primitive values can be destructured through their wrapper objects:
+
+```js
+const { length } = "A string"
+
+console.log(length) // 8
+```
+
+JavaScript temporarily wraps the string in a `String` object to access its properties.
+
+---
+
+### 1.2 Array Destructuring
+
+Array destructuring works by position:
+
+```js
+const date = ["1970", "12", "01"]
+
+const [year, month, day] = date
+
+console.log(year) // "1970"
+console.log(month) // "12"
+console.log(day) // "01"
+```
+
+#### Skipping Elements
+
+You can skip unwanted values:
+
+```js
+const [year, , day] = date
+
+console.log(year) // "1970"
+console.log(day) // "01"
+```
+
+#### Nested Array Destructuring
+
+```js
+const nestedArray = [1, 2, [3, 4], 5]
+
+const [one, two, [three, four], five] = nestedArray
+
+console.log(one, two, three, four, five)
+// 1 2 3 4 5
+```
+
+#### Destructuring Function Parameters
+
+You'll often see destructuring directly in function parameters:
+
+```js
+const note = {
+  id: 1,
+  title: "My first note",
+  date: "01/01/1970",
+}
+
+Object.entries(note).forEach(([key, value]) => {
+  console.log(`${key}: ${value}`)
+})
+
+// Or using for...of
+for (const [key, value] of Object.entries(note)) {
+  console.log(`${key}: ${value}`)
+}
+```
+
+Output:
+
+```txt
+id: 1
+title: My first note
+date: 01/01/1970
+```
+
+#### Combining Defaults, Objects, and Arrays
+
+Default values can be mixed with object and array destructuring:
+
+```js
+const note = {
+  title: "My first note",
+  author: {
+    firstName: "Sherlock",
+    lastName: "Holmes",
+  },
+  tags: ["personal", "writing", "investigations"],
+}
+
+const {
+  title,
+  date = new Date(),
+  author: { firstName },
+  tags: [personalTag, writingTag],
+} = note
+
+console.log(date)
+```
+
+If `date` doesn't exist on `note`, the current date will be used.
+
+---
+
+## 2. The Spread Operator (`...`)
+
+The spread operator expands an iterable or object into individual elements or properties.
+
+Common use cases include:
+
+* Merging arrays
+* Copying arrays or objects
+* Passing arguments to functions
+
+### 2.1 Spread with Arrays
+
+Combining arrays:
+
+```js
+const tools = ["hammer", "screwdriver"]
+const otherTools = ["wrench", "saw"]
+
+const allTools = [...tools, ...otherTools]
+
+console.log(allTools)
+// ["hammer", "screwdriver", "wrench", "saw"]
+```
+
+Adding an item without mutating the original array:
+
+```js
+const users = [
+  { id: 1, name: "Ben" },
+  { id: 2, name: "Leslie" },
+]
+
+const newUser = { id: 3, name: "Ron" }
+
+const updatedUsers = [...users, newUser]
+
+console.log(users)
+console.log(updatedUsers)
+```
+
+#### Reference Copy vs Shallow Copy
+
+Reference copy:
+
+```js
+const originalArray = ["one", "two", "three"]
+const secondArray = originalArray
+
+secondArray.pop()
+
+console.log(originalArray)
+// ["one", "two"]
+```
+
+Shallow copy using spread:
+
+```js
+const originalArray = ["one", "two", "three"]
+const secondArray = [...originalArray]
+
+secondArray.pop()
+
+console.log(originalArray)
+// ["one", "two", "three"]
+```
+
+Converting a `Set` or string into an array:
+
+```js
+const set = new Set()
+set.add("octopus")
+set.add("starfish")
+set.add("whale")
+
+const seaCreatures = [...set]
+console.log(seaCreatures)
+
+const string = "hello"
+const stringArray = [...string]
+console.log(stringArray)
+```
+
+### 2.2 Spread with Objects
+
+Creating a shallow copy:
+
+```js
+const originalObject = {
+  enabled: true,
+  darkMode: false,
+}
+
+const secondObject = { ...originalObject }
+
+console.log(secondObject)
+```
+
+Adding or overriding properties:
+
+```js
+const user = {
+  id: 3,
+  name: "Ron",
+}
+
+const updatedUser = {
+  ...user,
+  isLoggedIn: true,
+}
+
+console.log(updatedUser)
+```
+
+#### Updating Nested Objects
+
+Be careful with nested objects:
+
+```js
+const user = {
+  id: 3,
+  name: "Ron",
+  organization: {
+    name: "Parks & Recreation",
+    city: "Pawnee",
+  },
+}
+```
+
+Incorrect:
+
+```js
+const brokenUser = {
+  ...user,
+  organization: {
+    position: "Director",
+  },
+}
+```
+
+This replaces the entire `organization` object.
+
+Correct:
+
+```js
+const updatedUser = {
+  ...user,
+  organization: {
+    ...user.organization,
+    position: "Director",
+  },
+}
+```
+
+### 2.3 Spread in Function Calls
+
+Spread can unpack arrays into function arguments:
+
+```js
+function multiply(a, b, c) {
+  return a * b * c
+}
+
+const numbers = [3, 2, 1]
+
+console.log(multiply(...numbers))
+// 6
+```
+
+Before spread syntax, you'd typically use `apply`:
+
+```js
+multiply.apply(null, numbers)
+// 6
+```
+
+---
+
+## 3. Rest Parameters (`...`)
+
+Although rest parameters use the same `...` syntax, they do the opposite of spread.
+
+* **Spread:** break values apart.
+* **Rest:** collect values together.
+
+### 3.1 Rest Parameters in Functions
+
+Accepting an arbitrary number of arguments:
+
+```js
+function restTest(...args) {
+  console.log(args)
+}
+
+restTest(1, 2, 3, 4, 5, 6)
+// [1, 2, 3, 4, 5, 6]
+```
+
+Collecting only the remaining arguments:
+
+```js
+function restTest(one, two, ...args) {
+  console.log(one) // 1
+  console.log(two) // 2
+  console.log(args) // [3, 4, 5, 6]
+}
+
+restTest(1, 2, 3, 4, 5, 6)
+```
+
+#### Rest vs Arguments
+
+Traditional JavaScript uses `arguments`:
+
+```js
+function testArguments() {
+  console.log(arguments)
+}
+
+testArguments("how", "many", "arguments")
+```
+
+Limitations of `arguments`:
+
+* Not available in arrow functions.
+* Not a real array.
+* Always captures all arguments.
+
+Rest parameters avoid all of these issues.
+
+### 3.2 Rest in Destructuring
+
+Array destructuring:
+
+```js
+const [firstTool, ...rest] = [
+  "hammer",
+  "screwdriver",
+  "wrench",
+]
+
+console.log(firstTool)
+// "hammer"
+
+console.log(rest)
+// ["screwdriver", "wrench"]
+```
+
+Object destructuring:
+
+```js
+const { isLoggedIn, ...rest } = {
+  id: 1,
+  name: "Ben",
+  isLoggedIn: true,
+}
+
+console.log(isLoggedIn)
+// true
+
+console.log(rest)
+// { id: 1, name: "Ben" }
+```
+
+This pattern is extremely common when you only care about a few properties and want to pass the rest elsewhere.
+
+---
+
+## 4. Summary & Personal Usage Guidelines
+
+To keep things simple and avoid common mistakes, here are a few habits I follow:
+
+### Destructuring
+
+* Destructure props, API responses, and configuration objects as early as possible.
+* Avoid overly deep nested destructuring. If it goes beyond two levels, consider extracting variables separately.
+
+### Spread
+
+* Prefer creating new arrays or objects instead of mutating existing references.
+* Remember that spread performs a **shallow copy**.
+* When updating nested objects, spread both the parent and child objects.
+
+### Rest
+
+* Use rest parameters for utility functions, logging helpers, and APIs that accept variable numbers of arguments.
+* Use rest in destructuring to collect remaining properties, such as:
+
+```js
+const { className, ...rest } = props
+```
+
+This is especially common in React component development.
+
+```
+```

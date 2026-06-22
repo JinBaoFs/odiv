@@ -1,6 +1,7 @@
 // app/blog/page.tsx
 import Link from "next/link"
 import { getTranslations, getLocale } from 'next-intl/server';
+import type { Locale } from "@/lib/mdx-posts"
 import { listMdxPosts } from "@/lib/mdx-posts"
 import { Iconfont } from '@/components/icon-font';
 import type { Route } from "next"
@@ -8,7 +9,8 @@ import type { Route } from "next"
 export default async function BlogListPage() {
   const t = await getTranslations('Blog');
   const desc = t('description');
-  const posts = await listMdxPosts();
+  const locale = await getLocale() as Locale;
+  const posts = await listMdxPosts(locale);
   return (
     <main className="container">
       <div className="o-title">
