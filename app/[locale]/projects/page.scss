@@ -45,12 +45,11 @@
       font-weight: 400;
       min-height: 46px;
     }
-
+    
     .item-group-btn{
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-top: 6px;
       .item-btn{
         padding: 0.5rem 1rem;
         border: 2px var(--text03) solid;

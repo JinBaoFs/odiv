@@ -20,6 +20,17 @@
       "about": "关于"
     }
   },
+  "Footer":{
+    "coffee": "咖啡 ☕",
+    "coffeeTitle": "请我喝杯咖啡 ☕",
+    "wechat": "微信",
+    "alipay": "支付宝",
+    "wallet": "钱包",
+    "tips": "由 oDiv 用心制作 ❤️",
+    "copyAddress": "复制地址",
+    "copySuccess": "复制成功 ✓",
+    "thankYouBoss": "感谢老板打赏 ❤️"
+  },
   "Home": {},
   "Blog": {
     "eyebrow": "Blog",

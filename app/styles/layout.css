@@ -1,3 +1,5 @@
+/* layout布局 */
+
 .layout {
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
@@ -36,4 +38,7 @@
 .footer{
   border-top: 1px solid var(--border);
   padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }

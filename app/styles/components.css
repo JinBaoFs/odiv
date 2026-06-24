@@ -1,3 +1,6 @@
+/* 公共样式 */
+
+
 .srOnly {
   position: absolute;
   width: 1px;
@@ -10,32 +13,6 @@
   border: 0;
 }
 
-.hero,
-.articleCard {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.06);
-}
-
-.hero {
-  padding: 32px;
-  display: grid;
-  gap: 18px;
-}
-
-.hero h2 {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 4rem);
-  line-height: 1.1;
-  margin: 0;
-}
-
-.hero p,
-.panel p,
-.articleCard p {
-  color: var(--text-muted);
-}
-
 .eyebrow {
   color: var(--primary);
   font-size: 0.8rem;
@@ -44,9 +21,7 @@
   text-transform: uppercase;
 }
 
-.toolbar,
-.heroActions,
-.metaRow {
+.toolbar{
   display: flex;
   align-items: center;
   gap: 12px;
@@ -92,7 +67,6 @@
   background: var(--background-02)
 }
 
-
 .button.primary {
   background: var(--primary);
   border-color: var(--primary);
@@ -106,61 +80,6 @@
 .select {
   padding: 10px 14px;
   appearance: none;
-}
-
-.panel {
-  padding: 24px;
-}
-
-.panel h2,
-.panel h3,
-.articleCard h3 {
-  margin: 0;
-}
-
-.articleCard {
-  padding: 24px;
-  display: grid;
-  gap: 14px;
-}
-
-.pill {
-  width: fit-content;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.metaRow span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-muted);
-  font-size: 0.92rem;
-}
-
-.themePreview {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.swatch {
-  padding: 18px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--surface-soft);
-  display: grid;
-  gap: 8px;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
 }
 
 .o-title{

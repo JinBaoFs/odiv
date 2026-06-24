@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 
 type MobileNavContextType = {
@@ -24,6 +25,11 @@ interface MobileNavProviderProps {
 
 export function MobileNavProvider({ children }: MobileNavProviderProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
 
   return (
     <MobileNavContext.Provider value={{ isOpen, setIsOpen }}>

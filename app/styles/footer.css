@@ -1,0 +1,118 @@
+.line{
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.line-text{
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-group{
+  display: flex;
+  gap: 16px;
+}
+
+.btn-group .item-btn{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.5rem 1rem;
+  border: 2px var(--text03) solid;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  transition: all 0.5s;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-group .item-btn img{
+  width: 20px;
+}
+
+.btn-group .item-btn:hover{
+  color: var(--primary);
+  border: 2px var(--primary) solid;
+}
+
+.footer .tips{
+  font-size: 0.8rem;
+  color: var(--text);
+  font-weight: 400;
+}
+
+
+.donate-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 9999;
+}
+
+.donate-modal {
+  position: relative;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  background: var(--background);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.close-btn {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+
+  border: none;
+  background: none;
+
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.tabs {
+  display: flex;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.tabs button {
+  flex: 1;
+  border: none;
+  background: var(--background-01);
+  padding: 10px 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.tabs button.active {
+  color: var(--primary);
+  background: var(--background-02);
+  border-radius: 4px;
+}
+
+.qrcode{
+  min-height: 220px;
+}
+
+.qrcode img {
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+}
+
+.tip {
+  margin-top: 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+}

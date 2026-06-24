@@ -23,11 +23,6 @@
     padding: 24px;
   }
 
-  .grid,
-  .themePreview {
-    grid-template-columns: 1fr;
-  }
-
   .o-hide{
     display: none;
   }

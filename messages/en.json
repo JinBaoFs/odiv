@@ -20,6 +20,17 @@
       "about": "About"
     }
   },
+  "Footer": {
+    "coffee": "Coffee ☕",
+    "coffeeTitle": "Buy Me a Coffee ☕",
+    "wechat": "WeChat",
+    "alipay": "Alipay",
+    "wallet": "Wallet",
+    "tips": "Crafted with ❤️ by oDiv",
+    "copyAddress": "Copy Address",
+    "copySuccess": "Copied ✓",
+    "thankYouBoss": "Thank you for your support ❤️"
+  },
   "Home": {},
   "Blog": {
     "eyebrow": "Blog",
