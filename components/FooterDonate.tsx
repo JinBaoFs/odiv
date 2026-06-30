@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { Iconfont } from './icon-font';
 
 type TabType =
   | 'alipay'
@@ -60,6 +61,7 @@ export default function FooterDonate() {
                 className={ tab === 'alipay' ? 'active' : '' }
                 onClick={() => setTab('alipay') }
               >
+                <Iconfont name="icon-alipay" size={20} />
                 {t('alipay')}
               </button>
 
@@ -67,6 +69,7 @@ export default function FooterDonate() {
                 className={ tab === 'wechat' ? 'active' : '' }
                 onClick={() => setTab('wechat') }
               >
+                <Iconfont name="icon-wechat" size={20} />
                 {t('wechat')}
               </button>
 
@@ -74,6 +77,7 @@ export default function FooterDonate() {
                 className={ tab === 'wallet' ? 'active' : ''} 
                 onClick={() => setTab('wallet')}
               >
+                <Iconfont name="icon-wallet" size={20} />
                 {t('wallet')}
               </button>
             </div>
@@ -84,7 +88,7 @@ export default function FooterDonate() {
                   <div className="text03 text-sm">USDT (BSC)</div>
                   <div className="wallet-address py-2">0x1234567890abcdef...</div>
                   <div
-                    className={`text-sm cursor-pointer${copied ? ' copied' : ''}`}
+                    className={`text-sm cursor-pointer ${copied ? 'copied' : ''}`}
                     onClick={handleCopy}
                   >
                     {copied ? t('copySuccess') : t('copyAddress')}

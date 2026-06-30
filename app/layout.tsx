@@ -15,7 +15,7 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
     <html suppressHydrationWarning>
       <body>
         <Script
-          src="//at.alicdn.com/t/c/font_5197184_8eae38tq6gd.js"
+          src="//at.alicdn.com/t/c/font_5197184_xj0lmvmmwhh.js"
           strategy="beforeInteractive"
         />
         <Providers>{children}</Providers>

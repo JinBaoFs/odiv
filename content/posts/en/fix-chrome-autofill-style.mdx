@@ -1,0 +1,281 @@
+export const metadata = {
+  title: "Fix Chrome Autofill Input Style Issues",
+  description:
+    "Learn how to fix Chrome Autofill styling issues, including unexpected background colors, text colors, and border-radius glitches while supporting both light and dark themes.",
+  date: "2026-06-26",
+  slug: "fix-chrome-autofill-style",
+  tags: ["css", "chrome", "autofill", "frontend", "ui"],
+  cover: "/images/chrome-autofill-style.png",
+  draft: false,
+}
+
+When building login or registration forms, you've probably encountered this issue before:
+
+After Chrome automatically fills in the username or password, **the input styles suddenly change**.
+
+For example:
+
+- The background turns light blue or yellow
+- A white background appears in dark mode
+- Custom text colors are overridden
+- The rounded corners show unexpected white edges or rendering artifacts
+
+If you inspect the input in DevTools, you'll notice Chrome applies an internal pseudo-class like this:
+
+```css
+input:-internal-autofill-selected
+```
+
+Many developers try to override this selector directly.
+
+Unfortunately, **pseudo-classes prefixed with `-internal-` are part of Chrome's internal implementation and cannot be customized.**
+
+The selector you should actually target is:
+
+```css
+input:-webkit-autofill
+```
+
+---
+
+## 1. Why Does This Happen?
+
+Chrome automatically applies special styles to autofilled inputs so users can easily recognize values that were filled by the browser.
+
+These styles may override properties such as:
+
+- `background`
+- `color`
+- `box-shadow`
+- `-webkit-text-fill-color`
+
+So even if your input is styled like this:
+
+```css
+input {
+  background: #1f1f1f;
+  color: #fff;
+}
+```
+
+Chrome may still render it like this:
+
+```text
+Light blue background
+Black text
+```
+
+This behavior becomes especially noticeable when using a dark theme.
+
+---
+
+## 2. Don't Try to Override `-internal-autofill-selected`
+
+Many tutorials suggest something like this:
+
+```css
+input:-internal-autofill-selected {
+  background: #fff;
+}
+```
+
+However, this doesn't work.
+
+The reason is simple:
+
+```css
+input:-internal-autofill-selected
+```
+
+is an internal Chrome pseudo-class.
+
+Developers can only customize:
+
+```css
+input:-webkit-autofill
+```
+
+---
+
+## 3. The Correct Solution
+
+The recommended approach is to override Chrome's autofill styles like this:
+
+```css
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--input-text-color);
+
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset;
+
+  transition: background-color 9999s ease-in-out 0s;
+}
+```
+
+The most important property here is:
+
+```css
+-webkit-box-shadow
+```
+
+Chrome doesn't actually change the real background color of the input.
+
+Instead, it paints an internal autofill layer.
+
+Using a large inset `box-shadow` effectively covers Chrome's default autofill background.
+
+---
+
+## 4. Supporting Both Light and Dark Themes
+
+If your application supports theme switching, avoid hardcoding colors.
+
+Instead, use CSS variables.
+
+```css
+:root {
+  --input-bg: #ffffff;
+  --input-text-color: #222222;
+}
+
+.dark {
+  --input-bg: #1b1b1b;
+  --input-text-color: #ffffff;
+}
+```
+
+Then apply them like this:
+
+```css
+input:-webkit-autofill {
+  -webkit-text-fill-color: var(--input-text-color);
+
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset;
+}
+```
+
+This allows the autofill styles to automatically match the current theme.
+
+---
+
+## 5. Why Do Rounded Corners Still Look Weird?
+
+Sometimes the background color is fixed, but you may still notice something like this:
+
+```text
+✔ Background looks correct
+❌ White edges appear around the rounded corners
+```
+
+For example:
+
+```css
+input {
+  border-radius: 12px;
+}
+```
+
+After Chrome autofills the input, the corners may look slightly broken.
+
+The reason is that:
+
+```css
+-webkit-box-shadow
+```
+
+only draws a large **inset shadow**.
+
+It does **not** actually replace the input's background.
+
+Because of this, certain versions of Chrome may expose small rendering artifacts around the border radius.
+
+---
+
+## 6. Fixing Border Radius Issues
+
+A common solution is to add:
+
+```css
+input {
+  border-radius: 12px;
+  background-clip: padding-box;
+}
+```
+
+Then inherit the border radius for autofilled inputs:
+
+```css
+input:-webkit-autofill {
+  border-radius: inherit;
+}
+```
+
+If tiny white edges are still visible, increase the inset shadow size:
+
+```css
+-webkit-box-shadow: 0 0 0 9999px var(--input-bg) inset;
+```
+
+Rendering behavior may vary slightly across different Chrome versions.
+
+---
+
+## 7. Recommended Final Solution
+
+The following CSS works well in most projects:
+
+```css
+input {
+  border-radius: 12px;
+  background-clip: padding-box;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--input-text-color);
+
+  -webkit-box-shadow: 0 0 0 9999px var(--input-bg) inset;
+
+  border-radius: inherit;
+
+  transition: background-color 9999s ease-in-out 0s;
+}
+```
+
+Theme variables:
+
+```css
+:root {
+  --input-bg: #ffffff;
+  --input-text-color: #222222;
+}
+
+.dark {
+  --input-bg: #1b1b1b;
+  --input-text-color: #ffffff;
+}
+```
+
+---
+
+## Conclusion
+
+Chrome Autofill is not a regular CSS style. Instead, Chrome applies a special rendering layer to autofilled inputs.
+
+Because of this, simply overriding the `background` property is usually not enough.
+
+To properly customize autofilled inputs, you should:
+
+- Avoid targeting `-internal-autofill-selected`
+- Style autofilled inputs using `input:-webkit-autofill`
+- Override Chrome's autofill background with `-webkit-box-shadow`
+- Use CSS variables to support both light and dark themes
+- Combine `background-clip` and `border-radius` to eliminate corner rendering issues
+
+With these techniques, you can preserve Chrome's Autofill functionality while keeping your form styles consistent across different themes and providing a better user experience.
