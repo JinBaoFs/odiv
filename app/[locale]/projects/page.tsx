@@ -36,11 +36,6 @@ export default async function ProjectsPage() {
           btnText: t('source'),
           linkUrl: 'https://www.chaincatcher.com/',
         },
-        {
-          type: 1,
-          btnText: t('demo'),
-          linkUrl: 'https://www.chaincatcher.com/',
-        }
       ]
     },
     {
@@ -55,6 +50,25 @@ export default async function ProjectsPage() {
           type: 1,
           btnText: t('source'),
           linkUrl: 'https://www.rootdata.com/',
+        }
+      ]
+    },
+    {
+      name: 'FOMO Tool',
+      desc_zh: '代币发行模拟器，预测价格走势和投资回报',
+      desc_en: 'Token issuance simulator for price trends and ROI prediction.',
+      follower_count: 128,
+      date: '2026',
+      btnGroup:[
+        {
+          type: 2,
+          btnText: t('demo'),
+          linkUrl: '/fomo-tool',
+        },
+        {
+          type: 2,
+          btnText: t('doc'),
+          linkUrl: '/blog/fomo-tool-guide',
         }
       ]
     },
@@ -86,7 +100,7 @@ export default async function ProjectsPage() {
               <div className="item-group-btn">
                 {item.btnGroup.map((row,rowIdx)=> {
                   return (
-                    <Link href={row.linkUrl} key={rowIdx} target='_blank' className='item-btn'>{ row.btnText }</Link>
+                    <Link href={row.linkUrl} key={rowIdx} target={row.type === 2 ? '_blank' : '_self'} className='item-btn'>{ row.btnText }</Link>
                   )})
                 }
               </div>

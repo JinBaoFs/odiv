@@ -1,0 +1,312 @@
+export const metadata = {
+  title: "FOMO Tool - Token Minting Model Calculator Guide",
+  description:
+    "Complete guide to FOMO Tool token issuance simulator. Learn the algorithm logic, parameter meanings, and use cases. Help Web3 projects evaluate token economic models, price trends, and investor ROI quickly.",
+  date: "2026-07-09",
+  slug: "fomo-tool-guide",
+  tags: ["web3", "token", "defi", "calculator", "simulation"],
+  cover: "/images/fomo-tool.png",
+  draft: false,
+}
+
+FOMO Tool is a token issuance simulation tool designed to help Web3 projects **quickly predict token price trends and investor returns** before finalizing parameters.
+
+By simulating a complete AMM (Automated Market Maker) process, projects can:
+
+- Validate parameter configuration reasonableness
+- Evaluate investor ROI potential
+- Optimize token economic models
+- Reduce price volatility risks at launch
+
+---
+
+## One: Core Concepts
+
+### What is Token Minting?
+
+Token minting refers to the process of releasing a fixed amount of new tokens into the liquidity pool during fixed periods (e.g., daily), thereby affecting token price.
+
+This is a common mechanism in Fair Launch models, serving purposes like:
+
+* **Gradual token release**: Prevent massive selloffs at launch
+* **Continuous liquidity provision**: Maintain trading depth
+* **Periodic price appreciation**: Create investment appeal
+
+---
+
+## Two: Workflow
+
+FOMO Tool's core is simulating a **multi-round minting process**:
+
+```
+Initial State (Round 0)
+  ↓
+Round 1: New tokens → Calculate price → Auto market making → Record stats
+  ↓
+Round 2: New tokens → Calculate price → Auto market making → Record stats
+  ↓
+...repeat multiple rounds...
+  ↓
+Final Results: Price curve, ROI, LP statistics
+```
+
+Each round follows the same steps with different input parameters.
+
+---
+
+## Three: Core Algorithm - AMM Constant Product Formula
+
+FOMO Tool uses a **Uniswap V2-style AMM** to calculate prices and trading volumes.
+
+### Basic Formula
+
+```
+x * y = k
+```
+
+Where:
+
+* **x** = Token reserve amount
+* **y** = BNB reserve amount
+* **k** = Constant (liquidity invariant)
+
+### Price Calculation
+
+```
+Price = Y / X (BNB ratio per token)
+```
+
+For example:
+
+```
+Current State:
+  X = 1,000,000 tokens
+  Y = 100 BNB
+  Price = 100 / 1,000,000 = 0.0001 BNB/token
+
+User purchases:
+  Pays 10 BNB
+  Calculate tokens received using x * y = k
+  New price becomes slightly higher (price appreciation)
+```
+
+---
+
+## Four: Parameter Guide
+
+When using FOMO Tool, you need to fill in 6 key parameters:
+
+### 1. Total Supply
+
+The **total token quantity** the project plans to issue.
+
+Example: 100 million (100,000,000).
+
+> **Recommendation**: Consider future inflation and burning mechanisms. Usually set to a relatively large number.
+
+### 2. Initial Price
+
+The project's **token price at launch**, measured in BNB.
+
+Example: 0.0001 BNB/token = 10,000 tokens per BNB.
+
+> **Recommendation**: Directly affects initial liquidity depth and investor purchasing power. Too high will trigger MAX_ITERATIONS warning.
+
+### 3. Max Purchase Per Address
+
+The **maximum tokens** each address can purchase in a single minting round.
+
+Example: 100,000 tokens.
+
+> **Purpose**: Prevent whales from concentrated selling in early stages.
+
+### 4. Auto Purchase Ratio
+
+The **percentage of tokens automatically repurchased** each round (corresponds to service fee portion).
+
+Example: 10% (10% of revenue used for buyback).
+
+> **Purpose**: Creates price support and prevents dumping.
+
+### 5. Liquidity Ratio
+
+The **percentage of BNB** from user purchases that gets added to the liquidity pool each round.
+
+Example: 80% (remaining 20% as project revenue).
+
+> **Purpose**: Affects liquidity depth and slippage.
+
+### 6. Minting Times Per Day
+
+**How many rounds** of minting occur per day.
+
+Example: 2 times (12:00 PM and 6:00 PM).
+
+> **Purpose**: Determines the frequency of price appreciation.
+
+---
+
+## Five: Detailed Calculation Process
+
+### Steps Per Minting Round
+
+Assume we set:
+- Total supply: 100 million tokens
+- Initial price: 0.0001 BNB
+- Max per address: 100,000 tokens
+- Auto purchase ratio: 10%
+- Liquidity ratio: 80%
+- Daily minting times: 2
+
+**Round 1 begins**:
+
+```
+1️⃣ New Token Addition (First minting)
+   Initialize based on initial price and liquidity:
+   - Initial liquidity = 10,000,000 tokens + 1,000 BNB
+
+2️⃣ User Purchases
+   - Maximum 100 addresses, each can buy max 100,000 tokens
+   - Assume users collectively purchased 900,000 tokens for 90 BNB
+
+3️⃣ Auto Repurchase (10% of 90 BNB = 9 BNB)
+   - Use 9 BNB to repurchase tokens from pool
+   - Price continues to appreciate
+
+4️⃣ Add Liquidity (80% of 90 BNB = 72 BNB)
+   - Add 72 BNB to liquidity pool
+   - Add corresponding tokens to maintain x*y=k
+
+5️⃣ Record Statistics
+   - Current price
+   - Total user BNB payment
+   - Project revenue (20% = 18 BNB)
+   - Remaining tokens to mint
+```
+
+**Round 2 begins** (based on Round 1's final state)...
+
+And so on until all tokens are minted.
+
+---
+
+## Six: Output Metrics Explained
+
+### Total Minted
+
+The **total token quantity** already released to the market.
+
+### Minting Times
+
+The **actual number of minting rounds** completed.
+
+### Total User Payment (BNB)
+
+The **total BNB** users spent throughout the entire process.
+
+### Service Fee
+
+The **BNB** the project receives from the non-liquidity portion (20% of user payments).
+
+### Auto Market Pool
+
+The **total BNB** used for automatic buybacks.
+
+### Current Price
+
+The **token price** after the final round.
+
+### Max Growth Rate
+
+The **percentage increase** from initial price to peak price.
+
+```
+Example:
+Initial price = 0.0001 BNB
+Peak price = 0.0005 BNB
+Growth rate = (0.0005 - 0.0001) / 0.0001 = 400%
+```
+
+### LP Query
+
+Query specific round **LP data and investor returns**.
+
+After selecting a round's query index, you can see:
+- That round's investor ROI
+- Investment amount and redemption value
+
+---
+
+## Seven: Common Scenarios
+
+### Scenario 1: Price Volatility Too High
+
+**Problem**: Price rises sharply in early rounds, then plateaus quickly, causing losses for late-stage buyers.
+
+**Solution**:
+* Increase `Daily minting times` → Spread releases for smoother curves
+* Decrease `Initial price` → Increase initial liquidity depth
+* Increase `Auto purchase ratio` → Add more price support
+
+### Scenario 2: Insufficient Liquidity
+
+**Problem**: Large purchases face excessive slippage.
+
+**Solution**:
+* Increase `Liquidity ratio` → More BNB enters pool
+* Increase `Initial liquidity` → Higher baseline depth
+* Decrease `Initial price` → More tokens in pool
+
+### Scenario 3: Verify Achievable ROI
+
+**Problem**: Investors want to know the required price appreciation to break even.
+
+**Solution**:
+Query a specific round index in the results, compare that round's ROI with current price to understand:
+* Actual returns at current price
+* Required appreciation for target ROI
+
+---
+
+## Eight: Important Notes
+
+### Extreme Parameters Cause Excessive Iterations
+
+If parameters are set irrationally (e.g., very low initial price), you may see:
+
+```
+⚠️ Current parameters would require more than 1000 simulation rounds
+```
+
+Reason: Each round can only mint a limited amount of tokens. Extreme parameters require thousands of rounds to complete.
+
+**Solutions**:
+* Increase `Initial price`
+* Increase `Max purchase per address`
+* Increase `Daily minting times`
+
+### Price Prediction Accuracy
+
+FOMO Tool operates under these assumptions:
+
+* Constant purchase demand each round
+* No unexpected large-scale selloffs
+* AMM slippage calculated per formula
+
+> **Note**: Real markets fluctuate. This tool is for reference only, not the sole decision-making basis.
+
+---
+
+## Summary
+
+FOMO Tool helps projects quickly validate token economic models through **AMM simulation** and **iterative round-by-round processing**.
+
+Key takeaways:
+
+* **6 parameters** control every aspect of the minting process
+* **AMM constant product formula** determines price calculation
+* **Each round follows the same steps** with different base states
+* **Output metrics** cover price, liquidity, revenue, ROI and more
+* **Parameter adjustments** fine-tune price trends and investor experience
+
+Start using FOMO Tool to rapidly iterate on your token economic model!

@@ -42,11 +42,79 @@
     "title": "Project",
     "description": "As a front-end developer with years of experience in both the Web2 and Web3 sectors, I have accumulated extensive project experience.",
     "source": "Source",
-    "demo": "Demo"
+    "demo": "Demo",
+    "doc": "Doc"
   },
   "About": {
     "eyebrow": "About",
     "title": "About me",
     "description": "Use this page for your bio, skill tags, contact details and résumé summary."
+  },
+  "fomoTool": {
+    "title": "Token Minting Model Calculator",
+    "description": "Simulate the complete process of token issuance, automated market making, and liquidity mining to help projects preview price trends and investor returns before finalizing parameters.",
+    "form": {
+      "totalSupply": "Total Supply",
+      "price": "Initial Price",
+      "maxBNB": "Max Purchase Per Address",
+      "swapRate": "Auto Purchase Ratio",
+      "lRate": "Liquidity Ratio",
+      "dayCast": "Minting Times Per Day",
+      "submit": "Start Creation"
+    },
+    "validation": {
+      "required": "Please enter {field}",
+      "tooManyIterations": "These parameters would require more than {max} simulation rounds. Please lower the initial price or adjust other parameters and try again."
+    },
+    "stats": {
+      "lToken": "Total Minted",
+      "numsLength": "Minting Times",
+      "userPayBNB": "Total User Payment (BNB)",
+      "serverFee": "Service Fee (BNB)",
+      "autoMarketBNB": "Auto Market Pool (BNB)",
+      "swapBuyToken": "Repurchased Tokens",
+      "poolBNB": "SWAP Pool BNB",
+      "poolToken": "SWAP Pool Token",
+      "currentPrice": "Current Price",
+      "maxGrowth": "Max Growth Rate",
+      "lpTotal": "Total LP",
+      "tokenOutput": "Total Staking Output"
+    },
+    "lpQuery": {
+      "label": "Query Index",
+      "placeholder": "Enter the index to query",
+      "button": "Query LP",
+      "index": "Query Count",
+      "roi": "ROI",
+      "payBNB": "Payment (BNB)",
+      "ransomBNB": "Redemption (BNB)",
+      "ransomToken": "Redemption (Token)"
+    },
+    "chart": {
+      "title": "Price Minting Trend",
+      "legend": {
+        "price": "Price",
+        "remaining": "Remaining Minting Tokens",
+        "roi": "ROI"
+      },
+      "tooltip": {
+        "nums": "Minting Count",
+        "dayRates": "Daily Growth",
+        "lps": "LP",
+        "rTokens": "Remaining Token",
+        "Ks": "K Coefficient",
+        "Xs": "X Token",
+        "Ys": "Y BNB",
+        "rates": "Price Growth",
+        "payBNBs": "User Payment",
+        "ransomBNBs": "Redemption BNB",
+        "ransomTokens": "Redemption Token",
+        "ransomTokensToBNB": "Redemption Value",
+        "reports": "ROI"
+      }
+    },
+    "error": {
+      "queryExceed": "Query index exceeds maximum"
+    }
   }
 }

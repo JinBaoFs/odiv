@@ -63,8 +63,9 @@
   border-radius: 4px;
 }
 
-.navItem:hover{
-  background: var(--background-02)
+.navItem:hover,
+.navItem.active {
+  background: var(--background-02);
 }
 
 .button.primary {
@@ -80,6 +81,24 @@
 .select {
   padding: 10px 14px;
   appearance: none;
+}
+
+.input {
+  padding: 10px 14px;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: text;
+  border: 1px solid var(--border);
+  background: var(--background-02);
+  color: var(--text);
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
 }
 
 .o-title{

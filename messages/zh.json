@@ -42,11 +42,79 @@
     "title": "项目",
     "description": "作为一名前端开发者，从事web2以及web3行业多年,所积累的项目经验!",
     "source": "来源",
-    "demo": "演示"
+    "demo": "演示",
+    "doc": "文档"
   },
   "About": {
     "eyebrow": "About",
     "title": "关于我",
     "description": "用来放个人简介、技能标签、联系方式与履历摘要。"
+  },
+  "fomoTool": {
+    "title": "代币铸造模型计算器",
+    "description": "用于模拟代币发行、自动做市、流动性挖矿的完整流程，帮助项目方在参数确定前提前测算价格走势和投资者回报率。",
+    "form": {
+      "totalSupply": "发行总量",
+      "price": "初始单价",
+      "maxBNB": "单地址购买上限数量",
+      "swapRate": "自动购买比例",
+      "lRate": "添加流动性比例",
+      "dayCast": "每天铸造次数",
+      "submit": "开始创建"
+    },
+    "validation": {
+      "required": "请输入{field}",
+      "tooManyIterations": "当前参数会导致模拟轮数超过 {max} 轮，请调低初始单价或调整其他参数后重试"
+    },
+    "stats": {
+      "lToken": "铸币总量",
+      "numsLength": "铸造次数",
+      "userPayBNB": "用户铸造支付BNB总数",
+      "serverFee": "铸币服务费收入",
+      "autoMarketBNB": "自动做市池BNB数量",
+      "swapBuyToken": "回购代币数量",
+      "poolBNB": "SWAP底池BNB数量",
+      "poolToken": "SWAP底池Token数量",
+      "currentPrice": "代币单价",
+      "maxGrowth": "代币最大涨幅",
+      "lpTotal": "LP总数",
+      "tokenOutput": "质押产出总数"
+    },
+    "lpQuery": {
+      "label": "查询索引",
+      "placeholder": "请输入需要查询的索引",
+      "button": "LP查询",
+      "index": "查询次数",
+      "roi": "回报率",
+      "payBNB": "支付BNB",
+      "ransomBNB": "赎回BNB",
+      "ransomToken": "赎回Token"
+    },
+    "chart": {
+      "title": "价格铸造趋势",
+      "legend": {
+        "price": "价格",
+        "remaining": "剩余铸造Tokens",
+        "roi": "回报率"
+      },
+      "tooltip": {
+        "nums": "铸造次数",
+        "dayRates": "当天涨幅",
+        "lps": "LP",
+        "rTokens": "剩余Token",
+        "Ks": "K系数",
+        "Xs": "X代币",
+        "Ys": "YBNB",
+        "rates": "价格涨幅",
+        "payBNBs": "用户支付BNB",
+        "ransomBNBs": "赎回BNB",
+        "ransomTokens": "赎回Token",
+        "ransomTokensToBNB": "赎回Token价值",
+        "reports": "回报率"
+      }
+    },
+    "error": {
+      "queryExceed": "已超过最大查询次数"
+    }
   }
 }
