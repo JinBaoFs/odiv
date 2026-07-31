@@ -52,7 +52,8 @@
     "description2": "这个博客主要记录我的技术学习、项目实践和踩坑总结，希望通过分享帮助自己沉淀经验，也能为同行提供一些参考。如果这些内容对你有所帮助，欢迎交流与探讨，一起成长。",
     "toolNav": "工具导航",
     "skillsTitle": "技能图谱",
-    "skillsChartDescription": "按照熟练程度排列的技能矩形树图"
+    "skillsChartDescription": "按照熟练程度排列的技能矩形树图",
+    "owlAnimationLabel": "一只站在树枝上打瞌睡的猫头鹰动画"
   },
   "fomoTool": {
     "title": "代币铸造模型计算器",

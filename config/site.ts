@@ -6,7 +6,7 @@ export const siteConfig = {
   defaultLocale: 'zh' as const,
   nav: [
     {key: 'blog', href: '/blog', iconName: 'icon-blog'},
-    {key: 'notes', href: '/notes', iconName: 'icon-book'},
+    // {key: 'notes', href: '/notes', iconName: 'icon-book'},
     {key: 'projects', href: '/projects', iconName: 'icon-project'},
     {key: 'about', href: '/about', iconName: 'icon-me'}
   ],

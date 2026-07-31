@@ -52,7 +52,8 @@
     "description2": "This blog primarily documents my technical learning, project practice, and troubleshooting experiences. I hope that by sharing these experiences, I can help myself accumulate knowledge and also provide some reference for my peers. If this content is helpful to you, please feel free to exchange ideas and discuss with me so we can grow together.",
     "toolNav": "Tool Nav",
     "skillsTitle": "Skill Map",
-    "skillsChartDescription": "A skill treemap ordered by proficiency"
+    "skillsChartDescription": "A skill treemap ordered by proficiency",
+    "owlAnimationLabel": "An animated sleepy owl perched on a branch"
   },
   "fomoTool": {
     "title": "Token Minting Model Calculator",

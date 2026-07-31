@@ -3,6 +3,7 @@ import { Iconfont } from '@/components/icon-font';
 import {SkillTreemap} from './skill-treemap';
 import {ToolNav} from '@/components/tool-nav';
 import type {ToolNavItem} from '@/components/tool-nav';
+import {OwlCanvas} from '@/components/owl-canvas';
 
 const toolNavItems: ToolNavItem[] = [
   {
@@ -137,7 +138,12 @@ export default async function AboutPage() {
             {t('description2')}
           </p>
         </div>
-        <div className="w-full min-h-50 bg-[var(--background-02)] rounded-2xl">
+        <div className="flex w-full min-h-50 items-center justify-center overflow-hidden rounded-2xl">
+          <OwlCanvas
+            width={220}
+            height={200}
+            ariaLabel={t('owlAnimationLabel')}
+          />
         </div>
       </div>
       <div className="o-title mt-8">
