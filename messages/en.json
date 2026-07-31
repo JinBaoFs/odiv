@@ -50,7 +50,9 @@
     "title": "About me",
     "description": "Hello, I am a front-end development engineer specializing in Web3 and modern front-end technologies, with a passion for researching blockchain applications, performance optimization, and engineering practices. I primarily use technologies such as Vue, Nuxt, React, Next.js, and TypeScript for development, and I continuously learn about Web3-related topics such as EVM, smart contract interaction, wallet connectivity, and DEX.",
     "description2": "This blog primarily documents my technical learning, project practice, and troubleshooting experiences. I hope that by sharing these experiences, I can help myself accumulate knowledge and also provide some reference for my peers. If this content is helpful to you, please feel free to exchange ideas and discuss with me so we can grow together.",
-    "toolNav": "Tool Nav"
+    "toolNav": "Tool Nav",
+    "skillsTitle": "Skill Map",
+    "skillsChartDescription": "A skill treemap ordered by proficiency"
   },
   "fomoTool": {
     "title": "Token Minting Model Calculator",

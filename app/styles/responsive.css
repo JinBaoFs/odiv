@@ -1,5 +1,20 @@
 @media (max-width: 960px) {
+  html {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
   .layout {
+    height: auto;
+    min-height: 100dvh;
     grid-template-columns: 1fr;
   }
 
@@ -16,6 +31,8 @@
   }
 
   .content {
+    height: auto;
+    min-height: 0;
     overflow: visible;
   }
 
