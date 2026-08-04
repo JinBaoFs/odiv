@@ -144,38 +144,43 @@ export function SkillTreemap({ariaLabel, ariaDescription}: SkillTreemapProps) {
   const {resolvedTheme} = useTheme();
 
   useEffect(() => {
-    const container = chartRef.current;
-    if (!container) return;
+    let resizeObserver: ResizeObserver | null = null;
+    let iconGroup: InstanceType<typeof echarts.graphic.Group> | null = null;
 
-    const chart = chartInstanceRef.current ?? echarts.init(container);
-    chartInstanceRef.current = chart;
-    const iconGroup = iconGroupRef.current ?? new echarts.graphic.Group({silent: true});
-    iconGroupRef.current = iconGroup;
+    const animationFrameId = requestAnimationFrame(() => {
+      const container = chartRef.current;
+      if (!container) return;
 
-    const mode = resolvedTheme === "dark" ? "dark" : "light";
-    const colors = palettes[mode];
-    const isMobile = container.clientWidth < 640;
+      const chart = chartInstanceRef.current ?? echarts.init(container);
+      chartInstanceRef.current = chart;
+      const activeIconGroup = iconGroupRef.current ?? new echarts.graphic.Group({silent: true});
+      iconGroup = activeIconGroup;
+      iconGroupRef.current = activeIconGroup;
 
-    const data = skills.map((skill) => {
-      const color = colors[skill.group];
+      const mode = resolvedTheme === "dark" ? "dark" : "light";
+      const colors = palettes[mode];
+      const isMobile = container.clientWidth < 640;
 
-      return {
-        name: skill.name,
-        value: skill.value,
-        itemStyle: {color: color.background},
-        label: {
-          color: color.foreground,
-          formatter: `\n${skill.name}`,
-        },
-      };
-    });
+      const data = skills.map((skill) => {
+        const color = colors[skill.group];
 
-    const rootStyles = getComputedStyle(document.documentElement);
-    const pageBackground = rootStyles.getPropertyValue("--background").trim();
-    const textColor = rootStyles.getPropertyValue("--text").trim();
-    const fontFamily = rootStyles.getPropertyValue("--font-body").trim();
+        return {
+          name: skill.name,
+          value: skill.value,
+          itemStyle: {color: color.background},
+          label: {
+            color: color.foreground,
+            formatter: `\n${skill.name}`,
+          },
+        };
+      });
 
-    const option: echarts.EChartsOption = {
+      const rootStyles = getComputedStyle(document.documentElement);
+      const pageBackground = rootStyles.getPropertyValue("--background").trim();
+      const textColor = rootStyles.getPropertyValue("--text").trim();
+      const fontFamily = rootStyles.getPropertyValue("--font-body").trim();
+
+      const option: echarts.EChartsOption = {
       animationDurationUpdate: 350,
       tooltip: {
         formatter: (params) => {
@@ -219,31 +224,33 @@ export function SkillTreemap({ariaLabel, ariaDescription}: SkillTreemapProps) {
           emphasis: {
             focus: "self",
             itemStyle: {
-              shadowBlur: 18,
-              shadowColor: "rgba(0, 0, 0, .18)",
+              // shadowBlur: 18,
+              // shadowColor: "rgba(0, 0, 0, .18)",
             },
           },
           data,
         },
       ],
-    };
+      };
 
-    chart.clear();
-    chart.setOption(option, {notMerge: true, lazyUpdate: false});
-    if (!iconGroup.parent) {
-      chart.getZr().add(iconGroup);
-    }
-    renderSkillIcons(chart, iconGroup, isMobile);
+      chart.clear();
+      chart.setOption(option, {notMerge: true, lazyUpdate: false});
+      if (!activeIconGroup.parent) {
+        chart.getZr().add(activeIconGroup);
+      }
+      renderSkillIcons(chart, activeIconGroup, isMobile);
 
-    const resizeObserver = new ResizeObserver(() => {
-      chart.resize();
-      renderSkillIcons(chart, iconGroup, container.clientWidth < 640);
+      resizeObserver = new ResizeObserver(() => {
+        chart.resize();
+        renderSkillIcons(chart, activeIconGroup, container.clientWidth < 640);
+      });
+      resizeObserver.observe(container);
     });
-    resizeObserver.observe(container);
 
     return () => {
-      resizeObserver.disconnect();
-      iconGroup.removeAll();
+      cancelAnimationFrame(animationFrameId);
+      resizeObserver?.disconnect();
+      iconGroup?.removeAll();
     };
   }, [resolvedTheme]);
 
