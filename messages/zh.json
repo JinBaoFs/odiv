@@ -35,7 +35,11 @@
   "Blog": {
     "eyebrow": "Blog",
     "title": "博客",
-    "description": "博客描述..."
+    "description": "编程、Web开发和设计参考资料和教程。",
+    "searchPlaceholder": "搜索文章...",
+    "searchLabel": "搜索博客文章",
+    "posts": "篇帖子",
+    "noResults": "没有找到匹配的文章。"
   },
   "Projects": {
     "eyebrow": "Projects",

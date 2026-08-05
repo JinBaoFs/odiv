@@ -35,7 +35,11 @@
   "Blog": {
     "eyebrow": "Blog",
     "title": "Blog",
-    "description": "Blog Desc..."
+    "description": "References and tutorials for programming, web development, and design.",
+    "searchPlaceholder": "Search posts...",
+    "searchLabel": "Search blog posts",
+    "posts": "Posts",
+    "noResults": "No matching posts found."
   },
   "Projects": {
     "eyebrow": "Projects",

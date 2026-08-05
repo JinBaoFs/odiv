@@ -1,0 +1,435 @@
+export const metadata = {
+  title: "在 Next.js 中封装浏览器通知提醒",
+  description: "在 Next.js App Router 中封装浏览器 Notification API，处理权限申请、SSR、页面可见性、定时提醒、资源清理与兼容性降级。",
+  date: "2024-08-14",
+  slug: "next-browser-notification",
+  lang: "zh",
+  tags: ["nextjs", "react", "typescript", "notification", "browser-api"],
+  draft: false,
+}
+
+在待办事项、后台任务、倒计时或消息系统中，我们经常需要在任务完成后提醒用户。页面仍在前台时可以显示 Toast，但当用户切换到其他标签页后，系统级浏览器通知会更有效。
+
+浏览器提供了原生 `Notification API`，不过直接在 React 组件里调用很容易遇到这些问题：
+
+- Next.js 服务端渲染阶段没有 `window` 和 `Notification`
+- 通知权限必须由用户主动操作触发
+- 用户拒绝权限后不能反复弹出请求
+- 定时器、事件监听器和通知实例需要及时清理
+- 页面处于前台时，系统通知可能造成重复打扰
+- 移动端和部分浏览器对通知的支持方式不同
+
+这篇文章将实现一个可复用的 `useBrowserNotification` Hook，并给出在 Next.js App Router 中的完整使用方式。
+
+> 浏览器通知应当用于用户明确需要的提醒，不要把它当作广告弹窗。频繁或未经说明的权限请求会明显降低用户信任。
+
+---
+
+## 一、Notification API 的基本用法
+
+最简单的浏览器通知代码如下：
+
+```ts
+if ("Notification" in window) {
+  const permission = await Notification.requestPermission()
+
+  if (permission === "granted") {
+    new Notification("任务完成", {
+      body: "数据导出已经完成。",
+      icon: "/icons/notification.png",
+    })
+  }
+}
+```
+
+`Notification.permission` 有三种状态：
+
+| 状态 | 含义 |
+| --- | --- |
+| `default` | 用户尚未作出选择 |
+| `granted` | 用户允许发送通知 |
+| `denied` | 用户拒绝发送通知 |
+
+需要注意：通知通常只在 HTTPS 环境或 `localhost` 中可用，并且 `requestPermission()` 应当在按钮点击等用户操作中调用。
+
+---
+
+## 二、先封装类型与能力检测
+
+新建 `lib/browser-notification.ts`：
+
+```ts
+export type BrowserNotificationPermission =
+  | NotificationPermission
+  | "unsupported"
+
+export interface NotifyOptions extends NotificationOptions {
+  onClick?: () => void
+  closeAfter?: number
+}
+
+export function supportsBrowserNotification(): boolean {
+  return typeof window !== "undefined" && "Notification" in window
+}
+
+export function getNotificationPermission(): BrowserNotificationPermission {
+  if (!supportsBrowserNotification()) return "unsupported"
+  return Notification.permission
+}
+```
+
+这里必须同时检查 `window` 和 `Notification`。只写下面这段代码会在服务端渲染时抛出错误：
+
+```ts
+// 错误示例：服务端没有 Notification
+const permission = Notification.permission
+```
+
+---
+
+## 三、封装发送通知函数
+
+把通知创建、点击处理和自动关闭集中到一个函数中：
+
+```ts
+export function sendBrowserNotification(
+  title: string,
+  options: NotifyOptions = {},
+): Notification | null {
+  if (!supportsBrowserNotification()) return null
+  if (Notification.permission !== "granted") return null
+
+  const {
+    onClick,
+    closeAfter = 8_000,
+    ...notificationOptions
+  } = options
+
+  const notification = new Notification(title, notificationOptions)
+
+  notification.onclick = () => {
+    window.focus()
+    onClick?.()
+    notification.close()
+  }
+
+  if (closeAfter > 0) {
+    window.setTimeout(() => notification.close(), closeAfter)
+  }
+
+  return notification
+}
+```
+
+调用时无需再次判断权限：
+
+```ts
+sendBrowserNotification("下载完成", {
+  body: "report.csv 已经准备好。",
+  icon: "/icons/notification.png",
+  tag: "download-report",
+  onClick: () => window.location.assign("/downloads"),
+})
+```
+
+`tag` 可以让同一类通知互相替换，避免重复堆积。对于任务进度、聊天会话等场景，建议使用稳定且具有业务含义的 `tag`。
+
+---
+
+## 四、封装 React Hook
+
+接下来创建 `hooks/use-browser-notification.ts`：
+
+```ts
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  getNotificationPermission,
+  sendBrowserNotification,
+  supportsBrowserNotification,
+  type BrowserNotificationPermission,
+  type NotifyOptions,
+} from "@/lib/browser-notification"
+
+export function useBrowserNotification() {
+  const [permission, setPermission] =
+    useState<BrowserNotificationPermission>("unsupported")
+  const activeNotifications = useRef(new Set<Notification>())
+
+  useEffect(() => {
+    setPermission(getNotificationPermission())
+
+    return () => {
+      activeNotifications.current.forEach((notification) => {
+        notification.close()
+      })
+      activeNotifications.current.clear()
+    }
+  }, [])
+
+  const requestPermission = useCallback(async () => {
+    if (!supportsBrowserNotification()) {
+      setPermission("unsupported")
+      return "unsupported" as const
+    }
+
+    const result = await Notification.requestPermission()
+    setPermission(result)
+    return result
+  }, [])
+
+  const notify = useCallback((title: string, options?: NotifyOptions) => {
+    const notification = sendBrowserNotification(title, options)
+    if (!notification) return null
+
+    activeNotifications.current.add(notification)
+    notification.addEventListener(
+      "close",
+      () => activeNotifications.current.delete(notification),
+      { once: true },
+    )
+
+    return notification
+  }, [])
+
+  return {
+    permission,
+    isSupported: permission !== "unsupported",
+    canNotify: permission === "granted",
+    requestPermission,
+    notify,
+  }
+}
+```
+
+这个 Hook 解决了三个核心问题：
+
+1. 只在客户端读取浏览器 API。
+2. 将权限状态转成 React 状态，方便界面响应。
+3. 组件卸载时关闭当前组件创建的通知。
+
+---
+
+## 五、在 Next.js 页面中使用
+
+页面需要交互，因此必须是客户端组件：
+
+```tsx
+"use client"
+
+import { useBrowserNotification } from "@/hooks/use-browser-notification"
+
+export function NotificationSettings() {
+  const {
+    permission,
+    isSupported,
+    canNotify,
+    requestPermission,
+    notify,
+  } = useBrowserNotification()
+
+  if (!isSupported) {
+    return <p>当前浏览器不支持系统通知。</p>
+  }
+
+  return (
+    <section>
+      <p>通知权限：{permission}</p>
+
+      {permission === "default" && (
+        <button type="button" onClick={requestPermission}>
+          开启通知
+        </button>
+      )}
+
+      {permission === "denied" && (
+        <p>通知已被禁用，请在浏览器的网站权限中手动开启。</p>
+      )}
+
+      <button
+        type="button"
+        disabled={!canNotify}
+        onClick={() => {
+          notify("测试通知", {
+            body: "浏览器通知已经配置成功。",
+            icon: "/icons/notification.png",
+            tag: "notification-test",
+          })
+        }}
+      >
+        发送测试通知
+      </button>
+    </section>
+  )
+}
+```
+
+不要在组件加载后自动请求权限。更好的流程是先向用户解释用途，再让用户点击“开启通知”。
+
+---
+
+## 六、只在页面处于后台时通知
+
+页面仍然可见时，可以用 Toast 或页面内状态提示；页面进入后台后再发送系统通知：
+
+```ts
+function notifyWhenHidden(
+  notify: (title: string, options?: NotifyOptions) => Notification | null,
+) {
+  if (document.visibilityState === "hidden") {
+    notify("处理完成", {
+      body: "你可以返回页面查看结果。",
+      tag: "task-complete",
+    })
+    return
+  }
+
+  // 页面处于前台时显示项目自己的 Toast。
+  showToast("处理完成")
+}
+```
+
+`document.visibilityState` 比 `window.focus()` 更适合判断标签页是否对用户可见。
+
+如果需要响应页面可见性变化，可以封装事件监听：
+
+```ts
+useEffect(() => {
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible") {
+      // 页面重新可见后同步消息或清除未读状态。
+    }
+  }
+
+  document.addEventListener("visibilitychange", handleVisibilityChange)
+  return () => {
+    document.removeEventListener("visibilitychange", handleVisibilityChange)
+  }
+}, [])
+```
+
+---
+
+## 七、封装定时提醒
+
+对于页面存活期间的倒计时，可以在 Hook 外再封装一个调度函数：
+
+```ts
+export function scheduleNotification(
+  callback: () => void,
+  delay: number,
+): () => void {
+  const timeoutId = window.setTimeout(callback, Math.max(0, delay))
+  return () => window.clearTimeout(timeoutId)
+}
+```
+
+在组件中使用：
+
+```ts
+useEffect(() => {
+  if (!canNotify) return
+
+  const cancel = scheduleNotification(() => {
+    notify("休息一下", {
+      body: "你已经专注工作 25 分钟。",
+      tag: "focus-timer",
+    })
+  }, 25 * 60 * 1000)
+
+  return cancel
+}, [canNotify, notify])
+```
+
+普通 `setTimeout` 只适用于页面仍然存活的情况。浏览器可能限制后台标签页的定时器，关闭页面后定时器也会消失。如果需要页面关闭后仍能收到通知，需要使用 Service Worker、Push API 和服务端推送。
+
+---
+
+## 八、通知点击后跳转
+
+在 Next.js 客户端组件中，可以结合 `useRouter`：
+
+```tsx
+"use client"
+
+import { useRouter } from "@/i18n/navigation"
+import { useBrowserNotification } from "@/hooks/use-browser-notification"
+
+export function ExportButton() {
+  const router = useRouter()
+  const { notify } = useBrowserNotification()
+
+  async function handleExport() {
+    await startExportTask()
+
+    notify("导出完成", {
+      body: "点击查看导出记录。",
+      tag: "export-complete",
+      onClick: () => router.push("/downloads"),
+    })
+  }
+
+  return <button onClick={handleExport}>导出数据</button>
+}
+```
+
+通知的点击回调只应该执行简单、可恢复的操作，例如聚焦窗口或跳转页面。重要业务操作仍应要求用户回到应用内确认。
+
+---
+
+## 九、常见问题
+
+### 1. 为什么权限请求没有弹出？
+
+检查页面是否运行在 HTTPS 或 `localhost`、权限是否已经被拒绝，以及调用是否来自用户点击事件。
+
+### 2. 为什么 iPhone 上无法直接创建通知？
+
+移动浏览器的支持情况与桌面端不同。部分场景需要将网站添加到主屏幕，并通过 Service Worker 显示通知。上线前应在目标设备上实际验证。
+
+### 3. 为什么关闭页面后收不到定时通知？
+
+因为 `setTimeout` 属于当前页面。页面关闭后 JavaScript 不再运行。跨会话提醒需要 Web Push 或原生应用能力。
+
+### 4. 能否在服务端组件中发送通知？
+
+不能。服务端组件可以读取数据，但浏览器通知必须由客户端代码调用。可以把交互区域拆成一个小型客户端组件。
+
+### 5. 用户拒绝后能否再次请求？
+
+通常不能通过代码重新弹出权限框。应展示说明，引导用户前往浏览器网站设置手动修改权限。
+
+---
+
+## 十、建议的项目结构
+
+```text
+lib/
+  browser-notification.ts
+hooks/
+  use-browser-notification.ts
+components/
+  notification-settings.tsx
+public/
+  icons/
+    notification.png
+```
+
+基础能力放在 `lib`，React 生命周期与状态放在 `hooks`，具体文案和按钮放在业务组件中。这样既便于测试，也不会让底层工具依赖 React。
+
+---
+
+## 总结
+
+在 Next.js 中封装浏览器通知时，需要重点处理：
+
+- 使用客户端组件隔离浏览器 API
+- 先检测能力，再读取通知权限
+- 只在用户主动操作后请求权限
+- 区分前台 Toast 和后台系统通知
+- 清理通知实例、定时器与事件监听器
+- 为拒绝权限和不支持的浏览器提供降级界面
+- 明确普通通知与 Web Push 的能力边界
+
+Notification API 本身并不复杂，真正重要的是权限体验和生命周期管理。把这些规则集中到 Hook 和工具函数中，业务页面就能用一致、安全的方式发送提醒。

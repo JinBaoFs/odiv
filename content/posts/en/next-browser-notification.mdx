@@ -1,0 +1,435 @@
+export const metadata = {
+  title: "Building Browser Notifications in Next.js",
+  description: "Wrap the browser Notification API in Next.js App Router with permission handling, SSR safety, page visibility, scheduled reminders, cleanup, and graceful fallbacks.",
+  date: "2024-08-14",
+  slug: "next-browser-notification",
+  lang: "en",
+  tags: ["nextjs", "react", "typescript", "notification", "browser-api"],
+  draft: false,
+}
+
+Todo apps, background tasks, timers, and messaging systems often need to notify users when something finishes. A toast works while the page is visible, but a system-level browser notification is more useful after the user switches to another tab.
+
+Browsers provide the native `Notification API`, but calling it directly from React components introduces several problems:
+
+- `window` and `Notification` do not exist during Next.js server rendering.
+- Notification permission must be requested from a user gesture.
+- A denied permission request should not be shown repeatedly.
+- Timers, event listeners, and notification instances require cleanup.
+- System notifications can be distracting while the page is already visible.
+- Mobile and desktop browsers support notifications differently.
+
+This article builds a reusable `useBrowserNotification` Hook and demonstrates a complete integration with the Next.js App Router.
+
+> Browser notifications should serve an explicit user need. Do not treat the permission prompt as an advertising popup; unexplained or repeated requests quickly damage trust.
+
+---
+
+## 1. Notification API Basics
+
+The smallest possible browser notification looks like this:
+
+```ts
+if ("Notification" in window) {
+  const permission = await Notification.requestPermission()
+
+  if (permission === "granted") {
+    new Notification("Task complete", {
+      body: "Your data export is ready.",
+      icon: "/icons/notification.png",
+    })
+  }
+}
+```
+
+`Notification.permission` has three states:
+
+| State | Meaning |
+| --- | --- |
+| `default` | The user has not made a choice |
+| `granted` | The user allows notifications |
+| `denied` | The user blocks notifications |
+
+Notifications normally require HTTPS or `localhost`, and `requestPermission()` should run inside a user action such as a button click.
+
+---
+
+## 2. Define Types and Feature Detection
+
+Create `lib/browser-notification.ts`:
+
+```ts
+export type BrowserNotificationPermission =
+  | NotificationPermission
+  | "unsupported"
+
+export interface NotifyOptions extends NotificationOptions {
+  onClick?: () => void
+  closeAfter?: number
+}
+
+export function supportsBrowserNotification(): boolean {
+  return typeof window !== "undefined" && "Notification" in window
+}
+
+export function getNotificationPermission(): BrowserNotificationPermission {
+  if (!supportsBrowserNotification()) return "unsupported"
+  return Notification.permission
+}
+```
+
+Both `window` and `Notification` must be checked. Reading the API at module scope can fail during server rendering:
+
+```ts
+// Incorrect: Notification does not exist on the server.
+const permission = Notification.permission
+```
+
+---
+
+## 3. Wrap Notification Creation
+
+Keep creation, click behavior, and automatic closing in one function:
+
+```ts
+export function sendBrowserNotification(
+  title: string,
+  options: NotifyOptions = {},
+): Notification | null {
+  if (!supportsBrowserNotification()) return null
+  if (Notification.permission !== "granted") return null
+
+  const {
+    onClick,
+    closeAfter = 8_000,
+    ...notificationOptions
+  } = options
+
+  const notification = new Notification(title, notificationOptions)
+
+  notification.onclick = () => {
+    window.focus()
+    onClick?.()
+    notification.close()
+  }
+
+  if (closeAfter > 0) {
+    window.setTimeout(() => notification.close(), closeAfter)
+  }
+
+  return notification
+}
+```
+
+Callers no longer need to repeat permission checks:
+
+```ts
+sendBrowserNotification("Download complete", {
+  body: "report.csv is ready.",
+  icon: "/icons/notification.png",
+  tag: "download-report",
+  onClick: () => window.location.assign("/downloads"),
+})
+```
+
+The `tag` option lets notifications from the same category replace one another instead of piling up. Use stable, business-specific tags for progress updates and conversations.
+
+---
+
+## 4. Build the React Hook
+
+Create `hooks/use-browser-notification.ts`:
+
+```ts
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  getNotificationPermission,
+  sendBrowserNotification,
+  supportsBrowserNotification,
+  type BrowserNotificationPermission,
+  type NotifyOptions,
+} from "@/lib/browser-notification"
+
+export function useBrowserNotification() {
+  const [permission, setPermission] =
+    useState<BrowserNotificationPermission>("unsupported")
+  const activeNotifications = useRef(new Set<Notification>())
+
+  useEffect(() => {
+    setPermission(getNotificationPermission())
+
+    return () => {
+      activeNotifications.current.forEach((notification) => {
+        notification.close()
+      })
+      activeNotifications.current.clear()
+    }
+  }, [])
+
+  const requestPermission = useCallback(async () => {
+    if (!supportsBrowserNotification()) {
+      setPermission("unsupported")
+      return "unsupported" as const
+    }
+
+    const result = await Notification.requestPermission()
+    setPermission(result)
+    return result
+  }, [])
+
+  const notify = useCallback((title: string, options?: NotifyOptions) => {
+    const notification = sendBrowserNotification(title, options)
+    if (!notification) return null
+
+    activeNotifications.current.add(notification)
+    notification.addEventListener(
+      "close",
+      () => activeNotifications.current.delete(notification),
+      { once: true },
+    )
+
+    return notification
+  }, [])
+
+  return {
+    permission,
+    isSupported: permission !== "unsupported",
+    canNotify: permission === "granted",
+    requestPermission,
+    notify,
+  }
+}
+```
+
+The Hook solves three core problems:
+
+1. Browser APIs are read only on the client.
+2. Permission becomes React state that the UI can respond to.
+3. Notifications created by the component are closed on unmount.
+
+---
+
+## 5. Use It in a Next.js Page
+
+The interactive component must be a Client Component:
+
+```tsx
+"use client"
+
+import { useBrowserNotification } from "@/hooks/use-browser-notification"
+
+export function NotificationSettings() {
+  const {
+    permission,
+    isSupported,
+    canNotify,
+    requestPermission,
+    notify,
+  } = useBrowserNotification()
+
+  if (!isSupported) {
+    return <p>This browser does not support system notifications.</p>
+  }
+
+  return (
+    <section>
+      <p>Notification permission: {permission}</p>
+
+      {permission === "default" && (
+        <button type="button" onClick={requestPermission}>
+          Enable notifications
+        </button>
+      )}
+
+      {permission === "denied" && (
+        <p>Notifications are blocked. Enable them in your browser's site settings.</p>
+      )}
+
+      <button
+        type="button"
+        disabled={!canNotify}
+        onClick={() => {
+          notify("Test notification", {
+            body: "Browser notifications are configured correctly.",
+            icon: "/icons/notification.png",
+            tag: "notification-test",
+          })
+        }}
+      >
+        Send a test notification
+      </button>
+    </section>
+  )
+}
+```
+
+Do not request permission automatically when the component mounts. Explain the benefit first, then let the user click an enable button.
+
+---
+
+## 6. Notify Only When the Page Is Hidden
+
+Use a toast while the page is visible and a system notification after it moves to the background:
+
+```ts
+function notifyWhenHidden(
+  notify: (title: string, options?: NotifyOptions) => Notification | null,
+) {
+  if (document.visibilityState === "hidden") {
+    notify("Processing complete", {
+      body: "Return to the page to view the result.",
+      tag: "task-complete",
+    })
+    return
+  }
+
+  // Use the application's toast while the page is visible.
+  showToast("Processing complete")
+}
+```
+
+`document.visibilityState` is more appropriate than `window.focus()` for determining whether the tab is visible to the user.
+
+You can also react to visibility changes:
+
+```ts
+useEffect(() => {
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible") {
+      // Synchronize messages or clear unread state when the page returns.
+    }
+  }
+
+  document.addEventListener("visibilitychange", handleVisibilityChange)
+  return () => {
+    document.removeEventListener("visibilitychange", handleVisibilityChange)
+  }
+}, [])
+```
+
+---
+
+## 7. Schedule a Reminder
+
+For a countdown that only needs to survive while the page is open, add a small scheduler:
+
+```ts
+export function scheduleNotification(
+  callback: () => void,
+  delay: number,
+): () => void {
+  const timeoutId = window.setTimeout(callback, Math.max(0, delay))
+  return () => window.clearTimeout(timeoutId)
+}
+```
+
+Use it inside a component:
+
+```ts
+useEffect(() => {
+  if (!canNotify) return
+
+  const cancel = scheduleNotification(() => {
+    notify("Take a break", {
+      body: "You have been focused for 25 minutes.",
+      tag: "focus-timer",
+    })
+  }, 25 * 60 * 1000)
+
+  return cancel
+}, [canNotify, notify])
+```
+
+A regular `setTimeout` only works while the page remains alive. Browsers can throttle background timers, and closing the page destroys them completely. Notifications that must arrive after the page closes require a Service Worker, the Push API, and a server-side push service.
+
+---
+
+## 8. Navigate When a Notification Is Clicked
+
+In a Next.js Client Component, combine the Hook with `useRouter`:
+
+```tsx
+"use client"
+
+import { useRouter } from "@/i18n/navigation"
+import { useBrowserNotification } from "@/hooks/use-browser-notification"
+
+export function ExportButton() {
+  const router = useRouter()
+  const { notify } = useBrowserNotification()
+
+  async function handleExport() {
+    await startExportTask()
+
+    notify("Export complete", {
+      body: "Click to view your export history.",
+      tag: "export-complete",
+      onClick: () => router.push("/downloads"),
+    })
+  }
+
+  return <button onClick={handleExport}>Export data</button>
+}
+```
+
+A notification click handler should perform a simple, recoverable action such as focusing the window or navigating. Important business operations should still require confirmation inside the application.
+
+---
+
+## 9. Common Problems
+
+### Why does the permission prompt not appear?
+
+Check that the page uses HTTPS or `localhost`, the permission has not already been denied, and the request originates from a user click.
+
+### Why can I not create the same notification directly on iPhone?
+
+Mobile browser support differs from desktop support. Some scenarios require installing the site on the Home Screen and displaying notifications through a Service Worker. Always test on your target devices.
+
+### Why does a scheduled notification disappear after closing the page?
+
+`setTimeout` belongs to the current page. JavaScript stops when the page closes. Cross-session reminders require Web Push or native application capabilities.
+
+### Can a Server Component send a browser notification?
+
+No. A Server Component can load data, but only client-side code can call the browser API. Keep the interactive notification control in a small Client Component.
+
+### Can I ask again after the user denies permission?
+
+Browsers generally do not allow code to reopen the prompt. Show instructions that help the user change the permission manually in the browser's site settings.
+
+---
+
+## 10. Suggested Project Structure
+
+```text
+lib/
+  browser-notification.ts
+hooks/
+  use-browser-notification.ts
+components/
+  notification-settings.tsx
+public/
+  icons/
+    notification.png
+```
+
+Keep platform capabilities in `lib`, React lifecycle and state in `hooks`, and product copy and buttons in business components. This structure keeps the low-level utility testable and independent of React.
+
+---
+
+## Conclusion
+
+A reliable browser notification wrapper for Next.js should:
+
+- Isolate browser APIs inside Client Components.
+- Detect support before reading notification permissions.
+- Request permission only after an explicit user action.
+- Distinguish foreground toasts from background system notifications.
+- Clean up notifications, timers, and event listeners.
+- Provide fallbacks for denied permissions and unsupported browsers.
+- Clearly separate basic notifications from Web Push capabilities.
+
+The Notification API itself is small. Permission UX and lifecycle management are the difficult parts. Centralizing those rules in a Hook and a utility module gives every feature a consistent and safe way to notify users.

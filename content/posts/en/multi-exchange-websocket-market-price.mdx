@@ -1,0 +1,563 @@
+export const metadata = {
+  title: "Building a Reusable Multi-Exchange WebSocket Price Client in TypeScript",
+  description:
+    "Build a reusable TypeScript WebSocket client for Binance, OKX, and Bybit spot tickers with normalized data, shared connections, reconnection, and safe cleanup.",
+  date: "2026-03-02",
+  slug: "multi-exchange-websocket-market-price",
+  lang: "en",
+  tags: ["typescript", "websocket", "web3", "binance", "okx", "bybit"],
+  draft: false,
+}
+
+Market dashboards, portfolio lists, and trading screens often need live token prices from several exchanges. Creating a new `WebSocket` inside every component looks simple, but it quickly causes duplicate connections, inconsistent payloads, updates after unmount, and connections that never recover after a network interruption.
+
+This article builds a reusable TypeScript market data client with the following features:
+
+- Binance, OKX, and Bybit spot ticker support.
+- One normalized ticker shape for every exchange.
+- One shared connection per exchange across pages and components.
+- Multiple listeners for the same symbol without callback collisions.
+- Reference-counted unsubscription.
+- Exponential-backoff reconnection with automatic resubscription.
+- Heartbeats, error reporting, and explicit resource disposal.
+
+> This example reads public market data and does not require API keys. It does not place orders or access accounts. Exchange protocols can change, so verify the official documentation before deploying it.
+
+---
+
+## 1. Define One Public Interface
+
+The exchanges use different fields and symbol formats. Binance and Bybit use `BTCUSDT`, while OKX uses `BTC-USDT`. UI code should not need to know those details, so our public API accepts `BTC/USDT` and emits one ticker shape.
+
+```ts
+export type Exchange = "binance" | "okx" | "bybit"
+
+export interface MarketTicker {
+  exchange: Exchange
+  symbol: string
+  price: number
+  bid?: number
+  ask?: number
+  change24h?: number
+  timestamp: number
+}
+
+export type TickerListener = (ticker: MarketTicker) => void
+export type ErrorListener = (error: Error) => void
+```
+
+`change24h` is always a percentage. A value of `1.25` means a `1.25%` increase, not the decimal ratio `0.0125`.
+
+---
+
+## 2. The Complete Shared Client
+
+Save the implementation below as `lib/market-price-client.ts`. It is browser-only; in Next.js, call it from a component or hook marked with `"use client"`.
+
+```ts
+export type Exchange = "binance" | "okx" | "bybit"
+
+export interface MarketTicker {
+  exchange: Exchange
+  symbol: string
+  price: number
+  bid?: number
+  ask?: number
+  change24h?: number
+  timestamp: number
+}
+
+export type TickerListener = (ticker: MarketTicker) => void
+export type ErrorListener = (error: Error) => void
+
+type JsonRecord = Record<string, unknown>
+
+interface ExchangeAdapter {
+  url: string
+  toExchangeSymbol(symbol: string): string
+  toPublicSymbol(symbol: string): string
+  subscribe(symbols: string[]): string
+  unsubscribe(symbols: string[]): string
+  parse(payload: unknown): MarketTicker | null
+  heartbeat?: string
+}
+
+const asRecord = (value: unknown): JsonRecord | null =>
+  typeof value === "object" && value !== null ? (value as JsonRecord) : null
+
+const text = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined
+
+const finiteNumber = (value: unknown): number | undefined => {
+  const number = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(number) ? number : undefined
+}
+
+const normalizePublicSymbol = (symbol: string): string => {
+  const normalized = symbol.trim().toUpperCase().replace(/[-_]/g, "/")
+
+  if (!/^[A-Z0-9]+\/[A-Z0-9]+$/.test(normalized)) {
+    throw new Error(`Invalid symbol: ${symbol}. Use a value such as BTC/USDT.`)
+  }
+
+  return normalized
+}
+
+const compactSymbol = (symbol: string) =>
+  normalizePublicSymbol(symbol).replace("/", "")
+
+const dashedSymbol = (symbol: string) =>
+  normalizePublicSymbol(symbol).replace("/", "-")
+
+const binance: ExchangeAdapter = {
+  url: "wss://stream.binance.com:9443/ws",
+  toExchangeSymbol: (symbol) => compactSymbol(symbol).toLowerCase(),
+  toPublicSymbol: (symbol) => symbol.toUpperCase(),
+  subscribe: (symbols) =>
+    JSON.stringify({
+      method: "SUBSCRIBE",
+      params: symbols.map((symbol) => `${symbol}@ticker`),
+      id: Date.now(),
+    }),
+  unsubscribe: (symbols) =>
+    JSON.stringify({
+      method: "UNSUBSCRIBE",
+      params: symbols.map((symbol) => `${symbol}@ticker`),
+      id: Date.now(),
+    }),
+  parse: (payload) => {
+    const data = asRecord(payload)
+    if (!data || data.e !== "24hrTicker") return null
+
+    const price = finiteNumber(data.c)
+    const symbol = text(data.s)
+    if (price === undefined || !symbol) return null
+
+    return {
+      exchange: "binance",
+      symbol,
+      price,
+      bid: finiteNumber(data.b),
+      ask: finiteNumber(data.a),
+      change24h: finiteNumber(data.P),
+      timestamp: finiteNumber(data.E) ?? Date.now(),
+    }
+  },
+}
+
+const okx: ExchangeAdapter = {
+  url: "wss://ws.okx.com:8443/ws/v5/public",
+  toExchangeSymbol: dashedSymbol,
+  toPublicSymbol: (symbol) => symbol.replace("-", "/"),
+  subscribe: (symbols) =>
+    JSON.stringify({
+      op: "subscribe",
+      args: symbols.map((instId) => ({ channel: "tickers", instId })),
+    }),
+  unsubscribe: (symbols) =>
+    JSON.stringify({
+      op: "unsubscribe",
+      args: symbols.map((instId) => ({ channel: "tickers", instId })),
+    }),
+  heartbeat: "ping",
+  parse: (payload) => {
+    const message = asRecord(payload)
+    const rows = Array.isArray(message?.data) ? message.data : []
+    const data = asRecord(rows[0])
+    if (!data) return null
+
+    const price = finiteNumber(data.last)
+    const symbol = text(data.instId)
+    if (price === undefined || !symbol) return null
+
+    const open = finiteNumber(data.open24h)
+    const change24h = open && open !== 0 ? ((price - open) / open) * 100 : undefined
+
+    return {
+      exchange: "okx",
+      symbol: symbol.replace("-", "/"),
+      price,
+      bid: finiteNumber(data.bidPx),
+      ask: finiteNumber(data.askPx),
+      change24h,
+      timestamp: finiteNumber(data.ts) ?? Date.now(),
+    }
+  },
+}
+
+const bybit: ExchangeAdapter = {
+  url: "wss://stream.bybit.com/v5/public/spot",
+  toExchangeSymbol: compactSymbol,
+  toPublicSymbol: (symbol) => symbol,
+  subscribe: (symbols) =>
+    JSON.stringify({
+      op: "subscribe",
+      args: symbols.map((symbol) => `tickers.${symbol}`),
+    }),
+  unsubscribe: (symbols) =>
+    JSON.stringify({
+      op: "unsubscribe",
+      args: symbols.map((symbol) => `tickers.${symbol}`),
+    }),
+  heartbeat: JSON.stringify({ op: "ping" }),
+  parse: (payload) => {
+    const message = asRecord(payload)
+    if (!text(message?.topic)?.startsWith("tickers.")) return null
+
+    const data = asRecord(message?.data)
+    const price = finiteNumber(data?.lastPrice)
+    const symbol = text(data?.symbol)
+    if (price === undefined || !symbol) return null
+
+    const ratio = finiteNumber(data?.price24hPcnt)
+
+    return {
+      exchange: "bybit",
+      symbol,
+      price,
+      bid: finiteNumber(data?.bid1Price),
+      ask: finiteNumber(data?.ask1Price),
+      change24h: ratio === undefined ? undefined : ratio * 100,
+      timestamp: finiteNumber(message?.ts) ?? Date.now(),
+    }
+  },
+}
+
+const adapters: Record<Exchange, ExchangeAdapter> = {
+  binance,
+  okx,
+  bybit,
+}
+
+class ExchangeConnection {
+  private socket: WebSocket | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  private reconnectAttempts = 0
+  private manuallyClosed = false
+  private readonly listeners = new Map<string, Set<TickerListener>>()
+
+  constructor(
+    private readonly exchange: Exchange,
+    private readonly adapter: ExchangeAdapter,
+    private readonly onError?: ErrorListener,
+  ) {}
+
+  add(symbol: string, listener: TickerListener): () => void {
+    const publicSymbol = normalizePublicSymbol(symbol)
+    const exchangeSymbol = this.adapter.toExchangeSymbol(publicSymbol)
+    const listeners = this.listeners.get(exchangeSymbol) ?? new Set<TickerListener>()
+    const isFirstListener = listeners.size === 0
+
+    listeners.add(listener)
+    this.listeners.set(exchangeSymbol, listeners)
+    this.manuallyClosed = false
+
+    if (!this.socket || this.socket.readyState === WebSocket.CLOSED) {
+      this.connect()
+    } else if (isFirstListener && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(this.adapter.subscribe([exchangeSymbol]))
+    }
+
+    let active = true
+    return () => {
+      if (!active) return
+      active = false
+      this.remove(exchangeSymbol, listener)
+    }
+  }
+
+  close(): void {
+    this.manuallyClosed = true
+    this.clearTimers()
+    this.listeners.clear()
+    this.socket?.close(1000, "Client disposed")
+    this.socket = null
+  }
+
+  private connect(): void {
+    if (typeof window === "undefined") {
+      this.report(new Error("MarketPriceClient can only run in the browser."))
+      return
+    }
+
+    if (
+      this.socket?.readyState === WebSocket.OPEN ||
+      this.socket?.readyState === WebSocket.CONNECTING
+    ) {
+      return
+    }
+
+    const socket = new WebSocket(this.adapter.url)
+    this.socket = socket
+
+    socket.onopen = () => {
+      this.reconnectAttempts = 0
+      const symbols = [...this.listeners.keys()]
+      if (symbols.length > 0) socket.send(this.adapter.subscribe(symbols))
+      this.startHeartbeat()
+    }
+
+    socket.onmessage = (event) => {
+      if (event.data === "pong") return
+
+      try {
+        const ticker = this.adapter.parse(JSON.parse(String(event.data)))
+        if (!ticker) return
+
+        const exchangeSymbol = this.adapter.toExchangeSymbol(ticker.symbol)
+        const normalizedTicker = {
+          ...ticker,
+          symbol: normalizePublicSymbol(
+            this.adapter.toPublicSymbol(exchangeSymbol),
+          ),
+        }
+
+        this.listeners
+          .get(exchangeSymbol)
+          ?.forEach((listener) => listener(normalizedTicker))
+      } catch (error) {
+        this.report(error)
+      }
+    }
+
+    socket.onerror = () => {
+      this.report(new Error(`${this.exchange} WebSocket error.`))
+    }
+
+    socket.onclose = () => {
+      this.stopHeartbeat()
+      this.socket = null
+
+      if (!this.manuallyClosed && this.listeners.size > 0) {
+        this.scheduleReconnect()
+      }
+    }
+  }
+
+  private remove(symbol: string, listener: TickerListener): void {
+    const listeners = this.listeners.get(symbol)
+    if (!listeners) return
+
+    listeners.delete(listener)
+    if (listeners.size > 0) return
+
+    this.listeners.delete(symbol)
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(this.adapter.unsubscribe([symbol]))
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return
+
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30_000)
+    this.reconnectAttempts += 1
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.connect()
+    }, delay)
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat()
+    if (!this.adapter.heartbeat) return
+
+    this.heartbeatTimer = setInterval(() => {
+      if (this.socket?.readyState === WebSocket.OPEN) {
+        this.socket.send(this.adapter.heartbeat)
+      }
+    }, 20_000)
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
+    this.heartbeatTimer = null
+  }
+
+  private clearTimers(): void {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
+    this.reconnectTimer = null
+    this.stopHeartbeat()
+  }
+
+  private report(error: unknown): void {
+    this.onError?.(
+      error instanceof Error ? error : new Error("Unknown WebSocket error."),
+    )
+  }
+}
+
+export class MarketPriceClient {
+  private readonly connections = new Map<Exchange, ExchangeConnection>()
+
+  constructor(private readonly onError?: ErrorListener) {}
+
+  subscribe(
+    exchange: Exchange,
+    symbol: string,
+    listener: TickerListener,
+  ): () => void {
+    let connection = this.connections.get(exchange)
+
+    if (!connection) {
+      connection = new ExchangeConnection(
+        exchange,
+        adapters[exchange],
+        this.onError,
+      )
+      this.connections.set(exchange, connection)
+    }
+
+    return connection.add(symbol, listener)
+  }
+
+  dispose(): void {
+    this.connections.forEach((connection) => connection.close())
+    this.connections.clear()
+  }
+}
+
+export const marketPriceClient = new MarketPriceClient((error) => {
+  console.error("[market-price]", error)
+})
+```
+
+---
+
+## 3. Why It Can Be Used in Multiple Places
+
+`marketPriceClient` is a module-level singleton. Every component importing it within the same browser tab receives the same instance.
+
+Subscriptions are managed in two layers:
+
+```txt
+MarketPriceClient
+  ├─ Binance connection
+  │    ├─ BTCUSDT -> listener A, listener B
+  │    └─ ETHUSDT -> listener C
+  ├─ OKX connection
+  └─ Bybit connection
+```
+
+Each call to `subscribe()` returns a cleanup function. If component A unsubscribes, only A's callback is removed. The underlying exchange subscription remains active while component B still listens to the same pair.
+
+---
+
+## 4. Using It with React and Next.js
+
+Wrap the client in a hook for convenient use from any client component:
+
+```tsx
+"use client"
+
+import { useEffect, useState } from "react"
+import {
+  marketPriceClient,
+  type Exchange,
+  type MarketTicker,
+} from "@/lib/market-price-client"
+
+export function useMarketPrice(exchange: Exchange, symbol: string) {
+  const [ticker, setTicker] = useState<MarketTicker | null>(null)
+
+  useEffect(() => {
+    return marketPriceClient.subscribe(exchange, symbol, setTicker)
+  }, [exchange, symbol])
+
+  return ticker
+}
+```
+
+Use it in a price card:
+
+```tsx
+"use client"
+
+import { useMarketPrice } from "@/hooks/use-market-price"
+
+export function BitcoinPrice() {
+  const ticker = useMarketPrice("binance", "BTC/USDT")
+
+  if (!ticker) return <span>Loading...</span>
+
+  return (
+    <div>
+      <strong>{ticker.exchange}</strong>
+      <span>{ticker.symbol}: {ticker.price}</span>
+      <span>24h: {ticker.change24h?.toFixed(2)}%</span>
+    </div>
+  )
+}
+```
+
+You can compare several exchanges on one page:
+
+```tsx
+const binanceTicker = useMarketPrice("binance", "BTC/USDT")
+const okxTicker = useMarketPrice("okx", "BTC/USDT")
+const bybitTicker = useMarketPrice("bybit", "BTC/USDT")
+```
+
+The same API also works outside React:
+
+```ts
+const unsubscribe = marketPriceClient.subscribe(
+  "okx",
+  "ETH/USDT",
+  (ticker) => console.log(ticker.price),
+)
+
+// Call this when the price is no longer needed.
+unsubscribe()
+```
+
+Do not normally call `marketPriceClient.dispose()` when an ordinary component unmounts because it closes connections shared by the entire application. Reserve it for application shutdown, a logout flow that no longer needs market data, or test cleanup.
+
+---
+
+## 5. Production Considerations
+
+### 5.1 WebSocket Events Are Not Persistent State
+
+Messages sent while the client is disconnected are lost. A price display can usually wait for the next event after reconnection. If an initial value must be available immediately, fetch the exchange's REST ticker first and then apply WebSocket updates.
+
+### 5.2 Background Browser Tabs Are Throttled
+
+Browsers may reduce timer frequency in background tabs. A high-reliability market system should maintain exchange connections on a server and distribute normalized data to browsers through its own WebSocket or SSE endpoint.
+
+### 5.3 Do Not Subscribe Without Limits
+
+Exchanges impose connection, message-rate, and per-connection subscription limits. Large market lists should batch subscriptions, rate-limit resubscription, and split connections according to current official limits.
+
+### 5.4 Numeric Precision Matters
+
+The example uses `number` for convenient display. Settlement, order placement, and exact monetary calculations should preserve the strings returned by the exchange and use a decimal library such as `decimal.js` or `big.js`.
+
+### 5.5 Symbol Mapping Eventually Needs Instrument Metadata
+
+String conversion is adequate for common pairs such as `BTC/USDT`. Production systems should periodically load each exchange's instruments or exchange-info endpoint, maintain an explicit mapping, and exclude delisted or suspended instruments.
+
+### 5.6 A Ticker Is Not a Guaranteed Execution Price
+
+The last trade, best bid, and best ask represent different values. Larger orders are also affected by depth, slippage, and fees. Market data displays should not be presented as investment advice or an execution guarantee.
+
+---
+
+## 6. Summary
+
+A reusable multi-exchange WebSocket wrapper must do more than receive a price. It needs protocol adapters, shared connections, correct subscription lifecycles, reconnection, and resource cleanup.
+
+The implementation in this article normalizes Binance, OKX, and Bybit spot tickers into `MarketTicker`. It carries several symbols over one connection per exchange, lets multiple components share one subscription through listener sets, and uses cleanup callbacks, heartbeats, and exponential-backoff reconnection for long-running stability.
+
+The business layer only needs one entry point:
+
+```ts
+const unsubscribe = marketPriceClient.subscribe(
+  "binance",
+  "BTC/USDT",
+  (ticker) => console.log(ticker.price),
+)
+```
+
+Adding another exchange only requires a new `ExchangeAdapter`; UI components and the normalized data model remain unchanged. That separation between exchange protocols and presentation code is the main value of the design.

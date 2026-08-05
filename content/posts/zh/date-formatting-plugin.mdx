@@ -1,0 +1,417 @@
+export const metadata = {
+  title: "从零封装一个全面的日期格式化插件",
+  description: "使用 TypeScript 封装一个零依赖日期格式化插件，支持格式化 token、Intl 国际化、时区、相对时间、输入校验、缓存与自定义预设。",
+  date: "2021-10-12",
+  slug: "date-formatting-plugin",
+  lang: "zh",
+  tags: ["typescript", "javascript", "date", "intl", "utility"],
+  draft: false,
+}
+
+日期格式化看起来只是把 `Date` 转成字符串，但在真实项目里很快会遇到一连串问题：
+
+- 接口可能返回时间戳、ISO 字符串或 `Date` 实例
+- 月份从 `0` 开始，而星期从周日开始
+- 同一个时间需要按不同语言和时区展示
+- 列表里需要“刚刚”“3 分钟前”，详情页却需要完整日期
+- 无效输入不能悄悄变成 `Invalid Date`
+- SSR 与浏览器的默认时区不同，可能造成 hydration 不一致
+
+这篇文章会封装一个零依赖、类型安全且容易扩展的日期插件。它不是为了取代 date-fns、Day.js 等成熟库，而是展示一个适合中小项目的完整设计。
+
+---
+
+## 一、先确定插件边界
+
+我们希望最终得到以下 API：
+
+```ts
+const date = createDateFormatter({
+  locale: "zh-CN",
+  timeZone: "Asia/Shanghai",
+  invalidText: "--",
+})
+
+date.format("2021-10-12T08:30:00Z", "YYYY-MM-DD HH:mm:ss")
+date.intl(Date.now(), { dateStyle: "long" })
+date.relative(Date.now() - 3 * 60_000)
+date.isValid("2021-10-12")
+```
+
+设计上遵循几个原则：
+
+1. 接受常见输入，但拒绝有歧义的字符串。
+2. token 格式化用于固定格式，`Intl` 用于本地化展示。
+3. 时区必须显式配置，不能依赖部署机器的默认值。
+4. 无效输入由统一策略处理。
+5. 格式化器实例需要缓存，避免列表渲染时重复创建。
+
+---
+
+## 二、类型与输入解析
+
+先定义公共类型：
+
+```ts
+export type DateInput = Date | string | number
+
+export interface DateFormatterOptions {
+  locale?: string
+  timeZone?: string
+  invalidText?: string
+  now?: () => number
+}
+
+export type DatePattern =
+  | "YYYY-MM-DD"
+  | "YYYY-MM-DD HH:mm"
+  | "YYYY-MM-DD HH:mm:ss"
+  | "DD/MM/YYYY"
+  | (string & {})
+```
+
+解析阶段最重要的决定是：**不要让运行环境随意猜测日期格式**。
+
+```ts
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+export function toDate(input: DateInput): Date | null {
+  if (input instanceof Date) {
+    const cloned = new Date(input.getTime())
+    return Number.isNaN(cloned.getTime()) ? null : cloned
+  }
+
+  if (typeof input === "number") {
+    const date = new Date(input)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const value = input.trim()
+  if (!value) return null
+
+  // 把 YYYY-MM-DD 解释为本地日历日期，避免被当成 UTC 后跨日。
+  if (DATE_ONLY_RE.test(value)) {
+    const [year, month, day] = value.split("-").map(Number)
+    const date = new Date(year, month - 1, day)
+    const valid =
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    return valid ? date : null
+  }
+
+  // 其余字符串只接受带时区信息的 ISO 时间。
+  if (!/T/.test(value) || !/(Z|[+-]\d{2}:?\d{2})$/.test(value)) return null
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+```
+
+为什么不接受 `10/12/2021`？因为它在不同地区可能表示 10 月 12 日，也可能表示 12 月 10 日。边界处严格一点，后面的代码会简单很多。
+
+> 如果后端返回秒级 Unix 时间戳，请在进入插件前乘以 `1000`。不要通过数字长度猜测单位。
+
+---
+
+## 三、用 `Intl.DateTimeFormat` 统一处理时区
+
+直接调用 `getFullYear()` 等方法只能得到运行环境本地时区的结果。为了让 token 格式化也支持指定时区，可以先用 `formatToParts()` 拿到对应时区中的日期片段。
+
+```ts
+type DateParts = Record<
+  "year" | "month" | "day" | "hour" | "minute" | "second" | "weekday",
+  string
+>
+
+const formatterCache = new Map<string, Intl.DateTimeFormat>()
+
+function getFormatter(
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+) {
+  const key = JSON.stringify([locale, options])
+  let formatter = formatterCache.get(key)
+
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options)
+    formatterCache.set(key, formatter)
+  }
+
+  return formatter
+}
+
+function getDateParts(date: Date, locale: string, timeZone?: string): DateParts {
+  const formatter = getFormatter(locale, {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    weekday: "short",
+    hourCycle: "h23",
+  })
+
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  )
+
+  return parts as DateParts
+}
+```
+
+缓存很重要：创建 `Intl.DateTimeFormat` 的成本通常高于执行一次 `format()`。这里用 locale 与 options 共同组成缓存键。
+
+---
+
+## 四、实现 token 格式化
+
+先维护一张清晰的 token 表：
+
+| Token | 含义 | 示例 |
+| --- | --- | --- |
+| `YYYY` | 四位年份 | `2021` |
+| `YY` | 两位年份 | `21` |
+| `MM` / `M` | 月份 | `10` / `10` |
+| `DD` / `D` | 日期 | `05` / `5` |
+| `HH` / `H` | 24 小时 | `08` / `8` |
+| `mm` / `m` | 分钟 | `03` / `3` |
+| `ss` / `s` | 秒 | `09` / `9` |
+| `ddd` | 本地化星期简称 | `周二` |
+
+```ts
+const TOKEN_RE = /YYYY|YY|MM|M|DD|D|HH|H|mm|m|ss|s|ddd/g
+
+function applyPattern(pattern: string, parts: DateParts): string {
+  const values: Record<string, string> = {
+    YYYY: parts.year,
+    YY: parts.year.slice(-2),
+    MM: parts.month,
+    M: String(Number(parts.month)),
+    DD: parts.day,
+    D: String(Number(parts.day)),
+    HH: parts.hour,
+    H: String(Number(parts.hour)),
+    mm: parts.minute,
+    m: String(Number(parts.minute)),
+    ss: parts.second,
+    s: String(Number(parts.second)),
+    ddd: parts.weekday,
+  }
+
+  return pattern.replace(TOKEN_RE, (token) => values[token])
+}
+```
+
+正则必须把较长 token 放在前面，否则 `YYYY` 可能被拆成两个 `YY`。当前实现不支持在普通文本中转义 token；如果需求继续增长，应改用词法解析器，或直接选择成熟日期库。
+
+---
+
+## 五、相对时间
+
+相对时间应使用 `Intl.RelativeTimeFormat`，而不是自己拼接“前”“后”：
+
+```ts
+const relativeFormatterCache = new Map<string, Intl.RelativeTimeFormat>()
+
+function getRelativeFormatter(locale: string) {
+  let formatter = relativeFormatterCache.get(locale)
+  if (!formatter) {
+    formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+    relativeFormatterCache.set(locale, formatter)
+  }
+  return formatter
+}
+
+function formatRelative(date: Date, now: number, locale: string): string {
+  const seconds = (date.getTime() - now) / 1000
+  const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["year", 365 * 24 * 60 * 60],
+    ["month", 30 * 24 * 60 * 60],
+    ["week", 7 * 24 * 60 * 60],
+    ["day", 24 * 60 * 60],
+    ["hour", 60 * 60],
+    ["minute", 60],
+    ["second", 1],
+  ]
+
+  const [, divisor] = ranges.find(([, size]) => Math.abs(seconds) >= size) ?? ranges.at(-1)!
+  const unit = ranges.find(([, size]) => size === divisor)![0]
+  return getRelativeFormatter(locale).format(Math.round(seconds / divisor), unit)
+}
+```
+
+这里的“月”和“年”是适合信息流展示的近似值，不适合账期、年龄等日历计算。精确日历差值应由专门的业务函数处理。
+
+---
+
+## 六、组合成插件
+
+```ts
+export function createDateFormatter(options: DateFormatterOptions = {}) {
+  const locale = options.locale ?? "zh-CN"
+  const timeZone = options.timeZone
+  const invalidText = options.invalidText ?? "Invalid date"
+  const now = options.now ?? Date.now
+
+  function parse(input: DateInput): Date | null {
+    return toDate(input)
+  }
+
+  return {
+    isValid(input: DateInput) {
+      return parse(input) !== null
+    },
+
+    format(input: DateInput, pattern: DatePattern = "YYYY-MM-DD") {
+      const date = parse(input)
+      if (!date) return invalidText
+      return applyPattern(pattern, getDateParts(date, locale, timeZone))
+    },
+
+    intl(input: DateInput, formatOptions: Intl.DateTimeFormatOptions = {}) {
+      const date = parse(input)
+      if (!date) return invalidText
+      return getFormatter(locale, { ...formatOptions, timeZone }).format(date)
+    },
+
+    relative(input: DateInput) {
+      const date = parse(input)
+      if (!date) return invalidText
+      return formatRelative(date, now(), locale)
+    },
+
+    toISO(input: DateInput) {
+      const date = parse(input)
+      return date ? date.toISOString() : invalidText
+    },
+  }
+}
+```
+
+使用方式：
+
+```ts
+const date = createDateFormatter({
+  locale: "zh-CN",
+  timeZone: "Asia/Shanghai",
+  invalidText: "--",
+})
+
+date.format("2021-10-12T08:30:45Z", "YYYY年MM月DD日 HH:mm:ss")
+// 2021年10月12日 16:30:45
+
+date.intl("2021-10-12T08:30:45Z", {
+  dateStyle: "full",
+  timeStyle: "short",
+})
+// 2021年10月12日星期二 16:30
+
+date.relative(Date.now() - 3 * 60_000)
+// 3分钟前
+```
+
+---
+
+## 七、框架集成与 SSR 注意事项
+
+在 React 项目中，不要在每次渲染时创建实例。可以在独立模块中导出单例：
+
+```ts
+// lib/date.ts
+export const appDate = createDateFormatter({
+  locale: "zh-CN",
+  timeZone: "Asia/Shanghai",
+  invalidText: "--",
+})
+```
+
+多语言应用则按语言创建并缓存实例：
+
+```ts
+const instances = new Map<string, ReturnType<typeof createDateFormatter>>()
+
+export function getDateFormatter(locale: string) {
+  if (!instances.has(locale)) {
+    instances.set(locale, createDateFormatter({ locale, timeZone: "Asia/Shanghai" }))
+  }
+  return instances.get(locale)!
+}
+```
+
+SSR 时需要特别注意：
+
+- 服务端与客户端必须使用同一个 `locale` 和 `timeZone`
+- “几分钟前”会随时间变化，适合在客户端挂载后更新
+- 不要在一次渲染过程中多次调用 `Date.now()`；应固定同一个基准时间
+- 数据传输使用 ISO 8601，展示时再格式化
+
+---
+
+## 八、测试关键边界
+
+通过注入 `now` 可以稳定测试相对时间：
+
+```ts
+import { describe, expect, it } from "vitest"
+
+const date = createDateFormatter({
+  locale: "zh-CN",
+  timeZone: "Asia/Shanghai",
+  invalidText: "--",
+  now: () => Date.parse("2021-10-12T08:00:00Z"),
+})
+
+describe("date formatter", () => {
+  it("formats in the configured time zone", () => {
+    expect(date.format("2021-10-12T08:30:45Z", "YYYY-MM-DD HH:mm:ss"))
+      .toBe("2021-10-12 16:30:45")
+  })
+
+  it("rejects ambiguous and impossible dates", () => {
+    expect(date.isValid("10/12/2021")).toBe(false)
+    expect(date.isValid("2021-02-29")).toBe(false)
+  })
+
+  it("formats relative time", () => {
+    expect(date.relative("2021-10-12T07:57:00Z")).toBe("3分钟前")
+  })
+})
+```
+
+真实项目还应覆盖闰年、月末、跨年、夏令时切换、未来时间以及运行环境是否支持目标 IANA 时区。
+
+---
+
+## 九、什么时候不该自己封装
+
+以下需求建议直接使用 Temporal（环境支持时）或 date-fns、Day.js、Luxon 等成熟方案：
+
+- 日期加减、工作日、账期和复杂日历规则
+- 时区之间的精确转换与夏令时歧义处理
+- 非公历日历
+- 严格解析大量自定义输入格式
+- 完整的格式化 token 与插件生态
+
+自研工具最容易出错的部分不是“补零”，而是解析、时区与日历运算。只保留项目真正需要的能力，往往比不断扩张工具更可靠。
+
+---
+
+## 总结
+
+一个可靠的日期格式化插件至少需要处理：
+
+- 明确的输入类型与无效日期策略
+- 固定格式 token 与本地化格式的职责分离
+- 显式 locale 和时区
+- `Intl` 格式化器缓存
+- 相对时间的国际化
+- 可注入的当前时间与边界测试
+- SSR 服务端和客户端输出一致性
+
+日期展示是基础设施。把解析、时区和错误策略集中在一个模块里，业务组件只负责选择展示形式，代码会更一致，也更容易维护。

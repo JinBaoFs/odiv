@@ -1,0 +1,415 @@
+export const metadata = {
+  title: "Building a Comprehensive Date Formatting Plugin from Scratch",
+  description: "Build a zero-dependency TypeScript date formatting plugin with tokens, Intl localization, time zones, relative time, validation, caching, and presets.",
+  date: "2021-10-12",
+  slug: "date-formatting-plugin",
+  lang: "en",
+  tags: ["typescript", "javascript", "date", "intl", "utility"],
+  draft: false,
+}
+
+Date formatting looks like a simple conversion from `Date` to string, but production requirements quickly make it more complicated:
+
+- APIs return timestamps, ISO strings, or `Date` instances.
+- Months are zero-based, while weekdays start on Sunday.
+- The same instant must be displayed in different locales and time zones.
+- Feeds need “3 minutes ago,” while detail pages need an exact date.
+- Invalid input must not silently leak `Invalid Date` into the UI.
+- Different server and browser time zones can cause hydration mismatches.
+
+This article builds a zero-dependency, type-safe, extensible date plugin. It is not intended to replace mature libraries such as date-fns or Day.js; it demonstrates a solid design for small and medium-sized projects.
+
+---
+
+## 1. Define the Plugin Boundary
+
+Our final API should look like this:
+
+```ts
+const date = createDateFormatter({
+  locale: "en-US",
+  timeZone: "America/New_York",
+  invalidText: "--",
+})
+
+date.format("2021-10-12T08:30:00Z", "YYYY-MM-DD HH:mm:ss")
+date.intl(Date.now(), { dateStyle: "long" })
+date.relative(Date.now() - 3 * 60_000)
+date.isValid("2021-10-12")
+```
+
+The design follows five rules:
+
+1. Accept common inputs, but reject ambiguous strings.
+2. Use tokens for fixed output and `Intl` for localized output.
+3. Configure time zones explicitly instead of relying on the host default.
+4. Handle invalid input through one consistent policy.
+5. Cache formatter instances to keep list rendering inexpensive.
+
+---
+
+## 2. Types and Input Parsing
+
+Start with the public types:
+
+```ts
+export type DateInput = Date | string | number
+
+export interface DateFormatterOptions {
+  locale?: string
+  timeZone?: string
+  invalidText?: string
+  now?: () => number
+}
+
+export type DatePattern =
+  | "YYYY-MM-DD"
+  | "YYYY-MM-DD HH:mm"
+  | "YYYY-MM-DD HH:mm:ss"
+  | "DD/MM/YYYY"
+  | (string & {})
+```
+
+The most important parsing rule is: **do not let the runtime guess the input format**.
+
+```ts
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+export function toDate(input: DateInput): Date | null {
+  if (input instanceof Date) {
+    const cloned = new Date(input.getTime())
+    return Number.isNaN(cloned.getTime()) ? null : cloned
+  }
+
+  if (typeof input === "number") {
+    const date = new Date(input)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const value = input.trim()
+  if (!value) return null
+
+  // Interpret YYYY-MM-DD as a local calendar date to avoid a UTC date shift.
+  if (DATE_ONLY_RE.test(value)) {
+    const [year, month, day] = value.split("-").map(Number)
+    const date = new Date(year, month - 1, day)
+    const valid =
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    return valid ? date : null
+  }
+
+  // Other strings must be ISO timestamps with explicit zone information.
+  if (!/T/.test(value) || !/(Z|[+-]\d{2}:?\d{2})$/.test(value)) return null
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+```
+
+Why reject `10/12/2021`? It can mean October 12 or December 10 depending on the region. A strict boundary makes everything downstream simpler.
+
+> If an API returns Unix timestamps in seconds, multiply by `1000` before calling this plugin. Do not guess the unit from the number of digits.
+
+---
+
+## 3. Handle Time Zones with `Intl.DateTimeFormat`
+
+Methods such as `getFullYear()` only expose values in the host's local time zone. To support an explicit time zone in token formatting, use `formatToParts()` first.
+
+```ts
+type DateParts = Record<
+  "year" | "month" | "day" | "hour" | "minute" | "second" | "weekday",
+  string
+>
+
+const formatterCache = new Map<string, Intl.DateTimeFormat>()
+
+function getFormatter(locale: string, options: Intl.DateTimeFormatOptions) {
+  const key = JSON.stringify([locale, options])
+  let formatter = formatterCache.get(key)
+
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options)
+    formatterCache.set(key, formatter)
+  }
+
+  return formatter
+}
+
+function getDateParts(date: Date, locale: string, timeZone?: string): DateParts {
+  const formatter = getFormatter(locale, {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    weekday: "short",
+    hourCycle: "h23",
+  })
+
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  )
+
+  return parts as DateParts
+}
+```
+
+Caching matters because constructing an `Intl.DateTimeFormat` is generally more expensive than calling `format()`. The locale and options together form the cache key.
+
+---
+
+## 4. Implement Token Formatting
+
+Keep the supported token set explicit:
+
+| Token | Meaning | Example |
+| --- | --- | --- |
+| `YYYY` | Four-digit year | `2021` |
+| `YY` | Two-digit year | `21` |
+| `MM` / `M` | Month | `10` / `10` |
+| `DD` / `D` | Day of month | `05` / `5` |
+| `HH` / `H` | 24-hour clock | `08` / `8` |
+| `mm` / `m` | Minute | `03` / `3` |
+| `ss` / `s` | Second | `09` / `9` |
+| `ddd` | Localized short weekday | `Tue` |
+
+```ts
+const TOKEN_RE = /YYYY|YY|MM|M|DD|D|HH|H|mm|m|ss|s|ddd/g
+
+function applyPattern(pattern: string, parts: DateParts): string {
+  const values: Record<string, string> = {
+    YYYY: parts.year,
+    YY: parts.year.slice(-2),
+    MM: parts.month,
+    M: String(Number(parts.month)),
+    DD: parts.day,
+    D: String(Number(parts.day)),
+    HH: parts.hour,
+    H: String(Number(parts.hour)),
+    mm: parts.minute,
+    m: String(Number(parts.minute)),
+    ss: parts.second,
+    s: String(Number(parts.second)),
+    ddd: parts.weekday,
+  }
+
+  return pattern.replace(TOKEN_RE, (token) => values[token])
+}
+```
+
+Longer tokens must come first in the regular expression, or `YYYY` could be consumed as two `YY` tokens. This simple implementation does not escape tokens inside literal text. If that becomes a requirement, use a tokenizer or move to a mature date library.
+
+---
+
+## 5. Relative Time
+
+Use `Intl.RelativeTimeFormat` instead of concatenating English words manually:
+
+```ts
+const relativeFormatterCache = new Map<string, Intl.RelativeTimeFormat>()
+
+function getRelativeFormatter(locale: string) {
+  let formatter = relativeFormatterCache.get(locale)
+  if (!formatter) {
+    formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+    relativeFormatterCache.set(locale, formatter)
+  }
+  return formatter
+}
+
+function formatRelative(date: Date, now: number, locale: string): string {
+  const seconds = (date.getTime() - now) / 1000
+  const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["year", 365 * 24 * 60 * 60],
+    ["month", 30 * 24 * 60 * 60],
+    ["week", 7 * 24 * 60 * 60],
+    ["day", 24 * 60 * 60],
+    ["hour", 60 * 60],
+    ["minute", 60],
+    ["second", 1],
+  ]
+
+  const [unit, divisor] =
+    ranges.find(([, size]) => Math.abs(seconds) >= size) ?? ranges.at(-1)!
+
+  return getRelativeFormatter(locale).format(Math.round(seconds / divisor), unit)
+}
+```
+
+Months and years are approximations suitable for feeds. They are not appropriate for billing periods, ages, or other exact calendar arithmetic.
+
+---
+
+## 6. Assemble the Plugin
+
+```ts
+export function createDateFormatter(options: DateFormatterOptions = {}) {
+  const locale = options.locale ?? "en-US"
+  const timeZone = options.timeZone
+  const invalidText = options.invalidText ?? "Invalid date"
+  const now = options.now ?? Date.now
+
+  function parse(input: DateInput): Date | null {
+    return toDate(input)
+  }
+
+  return {
+    isValid(input: DateInput) {
+      return parse(input) !== null
+    },
+
+    format(input: DateInput, pattern: DatePattern = "YYYY-MM-DD") {
+      const date = parse(input)
+      if (!date) return invalidText
+      return applyPattern(pattern, getDateParts(date, locale, timeZone))
+    },
+
+    intl(input: DateInput, formatOptions: Intl.DateTimeFormatOptions = {}) {
+      const date = parse(input)
+      if (!date) return invalidText
+      return getFormatter(locale, { ...formatOptions, timeZone }).format(date)
+    },
+
+    relative(input: DateInput) {
+      const date = parse(input)
+      if (!date) return invalidText
+      return formatRelative(date, now(), locale)
+    },
+
+    toISO(input: DateInput) {
+      const date = parse(input)
+      return date ? date.toISOString() : invalidText
+    },
+  }
+}
+```
+
+Example usage:
+
+```ts
+const date = createDateFormatter({
+  locale: "en-US",
+  timeZone: "America/New_York",
+  invalidText: "--",
+})
+
+date.format("2021-10-12T08:30:45Z", "YYYY-MM-DD HH:mm:ss")
+// 2021-10-12 04:30:45
+
+date.intl("2021-10-12T08:30:45Z", {
+  dateStyle: "full",
+  timeStyle: "short",
+})
+// Tuesday, October 12, 2021 at 4:30 AM
+
+date.relative(Date.now() - 3 * 60_000)
+// 3 minutes ago
+```
+
+---
+
+## 7. Framework Integration and SSR
+
+In React, avoid creating the plugin on every render. Export a singleton from a separate module:
+
+```ts
+// lib/date.ts
+export const appDate = createDateFormatter({
+  locale: "en-US",
+  timeZone: "America/New_York",
+  invalidText: "--",
+})
+```
+
+For a localized application, cache one instance per locale:
+
+```ts
+const instances = new Map<string, ReturnType<typeof createDateFormatter>>()
+
+export function getDateFormatter(locale: string) {
+  if (!instances.has(locale)) {
+    instances.set(locale, createDateFormatter({ locale, timeZone: "UTC" }))
+  }
+  return instances.get(locale)!
+}
+```
+
+Important SSR rules:
+
+- Use the same `locale` and `timeZone` on the server and client.
+- Relative labels change over time; consider updating them after the client mounts.
+- Do not call `Date.now()` repeatedly during one render; share a fixed reference time.
+- Transfer dates as ISO 8601 strings and format them only for display.
+
+---
+
+## 8. Test the Boundaries
+
+Injecting `now` makes relative-time tests deterministic:
+
+```ts
+import { describe, expect, it } from "vitest"
+
+const date = createDateFormatter({
+  locale: "en-US",
+  timeZone: "America/New_York",
+  invalidText: "--",
+  now: () => Date.parse("2021-10-12T08:00:00Z"),
+})
+
+describe("date formatter", () => {
+  it("formats in the configured time zone", () => {
+    expect(date.format("2021-10-12T08:30:45Z", "YYYY-MM-DD HH:mm:ss"))
+      .toBe("2021-10-12 04:30:45")
+  })
+
+  it("rejects ambiguous and impossible dates", () => {
+    expect(date.isValid("10/12/2021")).toBe(false)
+    expect(date.isValid("2021-02-29")).toBe(false)
+  })
+
+  it("formats relative time", () => {
+    expect(date.relative("2021-10-12T07:57:00Z")).toBe("3 minutes ago")
+  })
+})
+```
+
+A production test suite should also cover leap years, month and year boundaries, daylight-saving transitions, future dates, and IANA time-zone availability in the target runtime.
+
+---
+
+## 9. When Not to Build It Yourself
+
+Prefer Temporal, where supported, or a mature library such as date-fns, Day.js, or Luxon when you need:
+
+- Date arithmetic, business days, billing periods, or complex calendar rules
+- Exact time-zone conversion and daylight-saving ambiguity handling
+- Non-Gregorian calendars
+- Strict parsing of many custom input formats
+- A complete token language and plugin ecosystem
+
+The dangerous parts of date handling are not padding numbers; they are parsing, time zones, and calendar arithmetic. A small utility stays reliable only when its scope stays small.
+
+---
+
+## Conclusion
+
+A dependable date formatting plugin should provide:
+
+- Explicit input types and a consistent invalid-date policy
+- Separate paths for fixed tokens and localized formatting
+- Explicit locale and time-zone configuration
+- Cached `Intl` formatters
+- Localized relative time
+- An injectable clock and boundary-focused tests
+- Identical server and client configuration for SSR
+
+Date presentation is infrastructure. Centralizing parsing, time zones, and error handling lets business components choose only how a date should look, making the application more consistent and maintainable.
