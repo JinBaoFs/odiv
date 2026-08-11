@@ -11,6 +11,7 @@
 
 :root,
 html.light {
+  color-scheme: light;
   --background: #ffffff;
   --background-02: #ededed7a;
   --surface: #ffffff;
@@ -24,6 +25,7 @@ html.light {
 }
 
 html.dark {
+  color-scheme: dark;
   --background: #1c1c20;
   --background-02: #25252b;
   --surface: #121a2b;
