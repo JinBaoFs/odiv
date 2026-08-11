@@ -1,36 +1,39 @@
 "use client";
 
 import {useEffect, useRef} from "react";
+import {useTranslations} from "next-intl";
 import {useTheme} from "next-themes";
 import * as echarts from "echarts";
 import styles from "./skill-treemap.module.scss";
 
 type Skill = {
+  id: string;
   name: string;
   value: number;
   group: keyof typeof palettes.light;
   icon: string;
+  url: string;
 };
 
 const skills: Skill[] = [
-  {name: "Solidity", value: 120, group: "web3", icon: "icon-solidity"},
-  {name: "TypeScript", value: 72, group: "language", icon: "icon-typescript"},
-  {name: "React", value: 90, group: "react", icon: "icon-react"},
-  {name: "Vue", value: 86, group: "cross", icon: "icon-vue"},
-  {name: "AI", value: 85, group: "neutral", icon: "icon-ai"},
-  {name: "Next.js", value: 56, group: "react", icon: "icon-next"},
-  {name: "Wagmi", value: 42, group: "web3", icon: "icon-wagmi"},
-  {name: "Viem", value: 40, group: "web3", icon: "icon-viem"},
-  {name: "RainbowKit", value: 64, group: "web3", icon: "icon-rainbowKit"},
-  {name: "Tailwind CSS", value: 60, group: "style", icon: "icon-tailwind"},
-  {name: "HTML", value: 85, group: "style", icon: "icon-html"},
-  {name: "CSS", value: 82, group: "style", icon: "icon-css"},
-  {name: "UniApp", value: 48, group: "cross", icon: "icon-uniapp"},
-  {name: "Weex", value: 44, group: "cross", icon: "icon-weex"},
-  {name: "RN", value: 30, group: "react", icon: "icon-react-native"},
-  {name: "Node.js", value: 46, group: "language", icon: "icon-node"},
-  {name: "Photoshop", value: 42, group: "design", icon: "icon-ps"},
-  {name: "Figma", value: 44, group: "design", icon: "icon-figma"},
+  {id: "solidity", name: "Solidity", value: 120, group: "web3", icon: "icon-solidity", url: "https://soliditylang.org/"},
+  {id: "typescript", name: "TypeScript", value: 72, group: "language", icon: "icon-typescript", url: "https://www.typescriptlang.org/"},
+  {id: "react", name: "React", value: 90, group: "react", icon: "icon-react", url: "https://react.dev/"},
+  {id: "vue", name: "Vue", value: 86, group: "cross", icon: "icon-vue", url: "https://vuejs.org/"},
+  {id: "ai", name: "AI", value: 85, group: "neutral", icon: "icon-ai", url: "https://openai.com/"},
+  {id: "nextjs", name: "Next.js", value: 56, group: "react", icon: "icon-next", url: "https://nextjs.org/"},
+  {id: "wagmi", name: "Wagmi", value: 42, group: "web3", icon: "icon-wagmi", url: "https://wagmi.sh/"},
+  {id: "viem", name: "Viem", value: 40, group: "web3", icon: "icon-viem", url: "https://viem.sh/"},
+  {id: "rainbowkit", name: "RainbowKit", value: 64, group: "web3", icon: "icon-rainbowKit", url: "https://www.rainbowkit.com/"},
+  {id: "tailwindcss", name: "Tailwind CSS", value: 60, group: "style", icon: "icon-tailwind", url: "https://tailwindcss.com/"},
+  {id: "html", name: "HTML", value: 85, group: "style", icon: "icon-html", url: "https://developer.mozilla.org/docs/Web/HTML"},
+  {id: "css", name: "CSS", value: 82, group: "style", icon: "icon-css", url: "https://developer.mozilla.org/docs/Web/CSS"},
+  {id: "uniapp", name: "UniApp", value: 48, group: "cross", icon: "icon-uniapp", url: "https://uniapp.dcloud.net.cn/"},
+  {id: "weex", name: "Weex", value: 44, group: "cross", icon: "icon-weex", url: "https://weexapp.com/"},
+  {id: "reactNative", name: "RN", value: 30, group: "react", icon: "icon-react-native", url: "https://reactnative.dev/"},
+  {id: "nodejs", name: "Node.js", value: 46, group: "language", icon: "icon-node", url: "https://nodejs.org/"},
+  {id: "photoshop", name: "Photoshop", value: 42, group: "design", icon: "icon-ps", url: "https://www.adobe.com/products/photoshop.html"},
+  {id: "figma", name: "Figma", value: 44, group: "design", icon: "icon-figma", url: "https://www.figma.com/"},
 ];
 
 const palettes = {
@@ -90,6 +93,16 @@ function getSymbolDataUri(symbolId: string) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  })[character] ?? character);
+}
+
 function renderSkillIcons(
   chart: echarts.ECharts,
   group: InstanceType<typeof echarts.graphic.Group>,
@@ -142,6 +155,7 @@ export function SkillTreemap({ariaLabel, ariaDescription}: SkillTreemapProps) {
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const iconGroupRef = useRef<InstanceType<typeof echarts.graphic.Group> | null>(null);
   const {resolvedTheme} = useTheme();
+  const t = useTranslations("About.skills");
 
   useEffect(() => {
     let resizeObserver: ResizeObserver | null = null;
@@ -185,8 +199,21 @@ export function SkillTreemap({ariaLabel, ariaDescription}: SkillTreemapProps) {
       tooltip: {
         formatter: (params) => {
           const item = Array.isArray(params) ? params[0] : params;
-          return `<strong>${item.name}</strong><br/>${item.value}`;
+          const skill = skills.find((candidate) => candidate.name === item.name);
+          if (!skill) return escapeHtml(String(item.name));
+
+          return [
+            `<div class="${styles.tooltipContent}">`,
+            `<strong class="${styles.tooltipTitle}">${escapeHtml(skill.name)}</strong>`,
+            `<p class="${styles.tooltipDescription}">${escapeHtml(t(`items.${skill.id}.description`))}</p>`,
+            `<a class="${styles.tooltipLink}" href="${skill.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(t("viewOfficial"))}</a>`,
+            "</div>",
+          ].join("");
         },
+        trigger: "item",
+        enterable: true,
+        confine: true,
+        hideDelay: 180,
         backgroundColor: mode === "dark" ? "rgba(18, 18, 20, .94)" : "rgba(255, 255, 255, .96)",
         borderColor: rootStyles.getPropertyValue("--border").trim(),
         textStyle: {color: textColor},
@@ -252,7 +279,7 @@ export function SkillTreemap({ariaLabel, ariaDescription}: SkillTreemapProps) {
       resizeObserver?.disconnect();
       iconGroup?.removeAll();
     };
-  }, [resolvedTheme]);
+  }, [resolvedTheme, t]);
 
   useEffect(() => {
     return () => {
@@ -276,7 +303,12 @@ export function SkillTreemap({ariaLabel, ariaDescription}: SkillTreemapProps) {
       />
       <ul className="srOnly">
         {skills.map((skill) => (
-          <li key={skill.name}>{skill.name}</li>
+          <li key={skill.id}>
+            {skill.name}: {t(`items.${skill.id}.description`)}{" "}
+            <a href={skill.url} target="_blank" rel="noopener noreferrer">
+              {t("viewOfficial")}
+            </a>
+          </li>
         ))}
       </ul>
     </section>

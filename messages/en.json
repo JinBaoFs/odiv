@@ -89,6 +89,29 @@
     "toolNav": "Tool Nav",
     "skillsTitle": "Skill Map",
     "skillsChartDescription": "A skill treemap ordered by proficiency",
+    "skills": {
+      "viewOfficial": "Learn more",
+      "items": {
+        "solidity": {"description": "A programming language for writing EVM-compatible smart contracts."},
+        "typescript": {"description": "Static typing for JavaScript that improves maintainability in larger projects."},
+        "react": {"description": "A component-based JavaScript library for building web and native interfaces."},
+        "vue": {"description": "A progressive JavaScript framework for building flexible interactive interfaces."},
+        "ai": {"description": "Intelligent models applied to product innovation, content, and development workflows."},
+        "nextjs": {"description": "A full-stack React framework with server rendering and the App Router."},
+        "wagmi": {"description": "A collection of React hooks for building Ethereum wallet experiences."},
+        "viem": {"description": "A lightweight, type-safe TypeScript interface for Ethereum."},
+        "rainbowkit": {"description": "A friendly, customizable wallet connection interface for Web3 apps."},
+        "tailwindcss": {"description": "A utility-first CSS framework for rapidly building custom interfaces."},
+        "html": {"description": "The standard markup language for structuring semantic web content."},
+        "css": {"description": "The style language for web layouts, visual design, and responsive behavior."},
+        "uniapp": {"description": "A cross-platform framework for building multi-platform apps with Vue syntax."},
+        "weex": {"description": "Cross-platform technology for building native mobile experiences with web skills."},
+        "reactNative": {"description": "A React framework for building native Android and iOS applications."},
+        "nodejs": {"description": "A JavaScript runtime for servers, development tools, and automation scripts."},
+        "photoshop": {"description": "A professional tool for image editing, visual design, and creative compositing."},
+        "figma": {"description": "A collaborative platform for interface design, prototyping, and handoff."}
+      }
+    },
     "owlAnimationLabel": "An animated sleepy owl perched on a branch"
   },
   "imageCompressor": {

@@ -13,6 +13,50 @@
   overflow: hidden;
 }
 
+.tooltipContent {
+  width: min(260px, calc(100vw - 64px));
+  white-space: normal;
+}
+
+.tooltipTitle {
+  display: block;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.tooltipDescription {
+  margin: 8px 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tooltipLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--text-muted);
+    background: var(--surface);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+}
+
 @media (max-width: 640px) {
   .panel {
     border-radius: 14px;
@@ -23,4 +67,3 @@
     border-radius: 10px;
   }
 }
-
