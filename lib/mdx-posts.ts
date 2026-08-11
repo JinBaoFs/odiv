@@ -15,6 +15,8 @@ export type MdxPostMetadata = {
   tags?: string[]
   cover?: string
   draft?: boolean
+  featuredOnHome?: boolean
+  homeOrder?: number
 }
 
 export type MdxPost = {

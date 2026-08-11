@@ -1,21 +1,14 @@
-import styles from "./tool-nav.module.scss";
-
-export type ToolNavLocale = "zh" | "en";
-
-export type ToolNavItem = {
-  title: Record<ToolNavLocale, string>;
-  description: Record<ToolNavLocale, string>;
-  logoUrl: string;
-  linkUrl: string;
-};
+import {Link} from '@/i18n/navigation';
+import type {ToolItem, ToolLocale} from '@/config/tools';
+import styles from './tool-nav.module.scss';
 
 type ToolNavProps = {
-  items: ToolNavItem[];
+  items: ToolItem[];
   locale: string;
 };
 
 export function ToolNav({items, locale}: ToolNavProps) {
-  const language: ToolNavLocale = locale === "en" ? "en" : "zh";
+  const language: ToolLocale = locale === 'en' ? 'en' : 'zh';
 
   return (
     <ul className={styles.grid}>
@@ -23,18 +16,16 @@ export function ToolNav({items, locale}: ToolNavProps) {
         const title = item.title[language];
 
         return (
-          <li key={item.linkUrl} className={styles.item}>
-            <a
+          <li key={item.id} className={styles.item}>
+            <Link
               className={styles.card}
               href={item.linkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`${title} (${language === "zh" ? "在新标签页打开" : "opens in a new tab"})`}
+              target={item.openInNewTab ? '_blank' : undefined}
+              rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
+              aria-label={item.openInNewTab ? `${title} (${language === 'zh' ? '在新标签页打开' : 'opens in a new tab'})` : title}
             >
               <span className={styles.logoWrap} aria-hidden="true">
-                <span className={styles.logoFallback}>
-                  {title.slice(0, 1).toUpperCase()}
-                </span>
+                <span className={styles.logoFallback}>{title.slice(0, 1).toUpperCase()}</span>
                 <img
                   className={styles.logo}
                   src={item.logoUrl}
@@ -47,18 +38,13 @@ export function ToolNav({items, locale}: ToolNavProps) {
               </span>
               <span className={styles.content}>
                 <span className={styles.title}>{title}</span>
-                <span className={styles.description}>
-                  {item.description[language]}
-                </span>
+                <span className={styles.description}>{item.description[language]}</span>
               </span>
-              <span className={styles.externalIcon} aria-hidden="true">
-                ↗
-              </span>
-            </a>
+              <span className={styles.externalIcon} aria-hidden="true">↗</span>
+            </Link>
           </li>
         );
       })}
     </ul>
   );
 }
-

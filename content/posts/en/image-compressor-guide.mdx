@@ -1,0 +1,151 @@
+export const metadata = {
+  title: "Building a Client-Side Batch Image Compressor with Canvas",
+  description: "Learn how to use Canvas, Blob, and Object URLs in Next.js to build a private image compressor with batch processing, progress, previews, and downloads.",
+  date: "2025-12-23",
+  slug: "image-compressor-guide",
+  lang: "en",
+  tags: ["frontend", "image", "canvas", "compression", "nextjs"],
+  draft: false,
+  featuredOnHome: true,
+  homeOrder: 3,
+}
+
+Image compression does not always require a backend. Modern browsers can read files, decode images, draw them onto a Canvas, and encode the result as a Blob. The image can therefore stay on the user's device from selection to download.
+
+This article explains the design behind this site's image compressor. It accepts multiple files, controls output dimensions and quality, reports progress, and provides previews and downloads.
+
+---
+
+## 1. Why process images in the browser?
+
+Client-side compression offers two immediate benefits: privacy and speed.
+
+- Images are never uploaded, which is useful for private photos
+- No server storage or transfer bandwidth is required
+- Processing can begin immediately after file selection
+- The tool still works when deployed as a static application
+
+The tradeoff is that the user's device supplies the CPU and memory. Batch jobs should therefore limit concurrency instead of decoding many high-resolution images at once.
+
+## 2. The processing pipeline
+
+Each image moves through the following pipeline:
+
+```text
+Select → validate → decode → calculate dimensions → draw to Canvas
+       → encode Blob → create preview URL → download
+```
+
+The tool accepts JPEG, PNG, and WebP. GIF is excluded because drawing it to Canvas preserves only a single frame and removes its animation.
+
+## 3. Building a multi-file queue
+
+The file input must include the `multiple` attribute:
+
+```tsx
+<input
+  type="file"
+  accept="image/jpeg,image/png,image/webp"
+  multiple
+/>
+```
+
+Every queue entry stores the original `File`, status, progress, preview URL, output Blob, and image dimensions. Independent item state also means one invalid image cannot stop the rest of the queue.
+
+The implementation detects duplicates using the file name, size, and modification time, and applies a 30 MB limit per image.
+
+## 4. Calculating output dimensions
+
+Resizing must preserve the original aspect ratio:
+
+```ts
+const scale = Math.min(
+  1,
+  maxWidth / sourceWidth,
+  maxHeight / sourceHeight,
+)
+
+const width = Math.round(sourceWidth * scale)
+const height = Math.round(sourceHeight * scale)
+```
+
+Including `1` in `Math.min` prevents small images from being enlarged. Upscaling cannot create real detail and may produce a larger file.
+
+## 5. Compressing with Canvas
+
+The browser can decode a file with `createImageBitmap` and draw it at the target size:
+
+```ts
+const bitmap = await createImageBitmap(file, {
+  imageOrientation: "from-image",
+})
+
+const canvas = document.createElement("canvas")
+canvas.width = width
+canvas.height = height
+
+const context = canvas.getContext("2d")
+context?.drawImage(bitmap, 0, 0, width, height)
+bitmap.close()
+```
+
+`imageOrientation: "from-image"` asks the browser to respect the photo orientation. Closing the bitmap after drawing allows its underlying resources to be released earlier.
+
+The Canvas is then encoded with `toBlob()`:
+
+```ts
+canvas.toBlob((blob) => {
+  if (!blob) throw new Error("Encode failed")
+}, "image/webp", 0.8)
+```
+
+The quality argument works best for JPEG and WebP. PNG is lossless, and browsers generally ignore its quality value. To make a PNG substantially smaller, reduce its dimensions or convert it to WebP.
+
+## 6. Designing honest progress feedback
+
+Canvas encoding does not expose byte-level progress events, so the UI should not pretend to show exact transfer progress. Each file instead reports its actual stage:
+
+1. Waiting
+2. Reading
+3. Decoding
+4. Compressing
+5. Complete or failed
+
+Overall progress averages the stage progress of every file and also reports the number completed. Files run sequentially to reduce memory pressure on mobile devices.
+
+## 7. Previewing and downloading
+
+A Blob needs an Object URL before an image element can display it:
+
+```ts
+const previewUrl = URL.createObjectURL(blob)
+```
+
+Downloading uses a temporary anchor with a `download` attribute:
+
+```ts
+const link = document.createElement("a")
+link.href = previewUrl
+link.download = "photo-compressed.webp"
+link.click()
+```
+
+An Object URL keeps its Blob alive. When an image is removed or the component unmounts, release it with:
+
+```ts
+URL.revokeObjectURL(previewUrl)
+```
+
+Without cleanup, repeatedly adding and removing large images can keep increasing the page's memory use.
+
+## 8. Format and privacy considerations
+
+Canvas re-encoding normally removes EXIF data, including GPS and camera metadata. This both reduces output size and lowers the risk of accidentally sharing a photo's location. It is not suitable for photography workflows that need to preserve metadata.
+
+Compression also cannot guarantee that every output is smaller. A highly optimized source converted to PNG may grow, so the result list shows the original size, output size, and actual percentage change.
+
+## Summary
+
+The `File`, `createImageBitmap`, Canvas, Blob, and Object URL APIs are enough to build a practical image optimization workflow without a backend or third-party compression service.
+
+The important part is not merely calling `toBlob()`. Reliable batch state, isolated errors, honest progress, format differences, and resource cleanup are what make the tool robust in everyday use.

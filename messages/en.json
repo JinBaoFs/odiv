@@ -31,7 +31,32 @@
     "copySuccess": "Copied ✓",
     "thankYouBoss": "Thank you for your support ❤️"
   },
-  "Home": {},
+  "Home": {
+    "hero": {
+      "eyebrow": "Hello, welcome to my digital garden",
+      "title": "Hi, I'm oDiv!",
+      "description": "I'm a front-end engineer who has spent years building Web2 and Web3 products while documenting engineering practices, open-source projects, and technical explorations.",
+      "secondaryDescription": "Everything here grows from real learning and project experience. I hope some of it helps you along your own development journey.",
+      "about": "About me",
+      "email": "Email newsletter",
+      "owlAnimationLabel": "An animated sleepy owl perched on a branch"
+    },
+    "posts": {
+      "title": "Blog notes",
+      "description": "Recent notes on front-end engineering, Web3 development, and everyday practice."
+    },
+    "projects": {
+      "title": "Open-source projects",
+      "description": "Products and open-source work that I contribute to, maintain, or continue to explore."
+    },
+    "explore": {
+      "title": "Deep exploration",
+      "description": "Tools, data platforms, and learning resources I use for development and research."
+    },
+    "common": {
+      "viewAll": "View all"
+    }
+  },
   "Blog": {
     "eyebrow": "Blog",
     "title": "Blog",
@@ -45,9 +70,16 @@
     "eyebrow": "Projects",
     "title": "Project",
     "description": "As a front-end developer with years of experience in both the Web2 and Web3 sectors, I have accumulated extensive project experience.",
+    "owlAnimationLabel": "An animated sleepy owl perched on a branch",
     "source": "Source",
     "demo": "Demo",
-    "doc": "Doc"
+    "doc": "Doc",
+    "items": {
+      "chaincatcher": {"description": "Professional Crypto & Fintech news and research platform."},
+      "rootdata": {"description": "A Web3 asset data platform serving more than two million users."},
+      "fomo-tool": {"description": "Token issuance simulator for price trends and ROI prediction."},
+      "image-compressor": {"description": "A client-side batch image compressor with progress, preview, and download support."}
+    }
   },
   "About": {
     "eyebrow": "About",
@@ -58,6 +90,50 @@
     "skillsTitle": "Skill Map",
     "skillsChartDescription": "A skill treemap ordered by proficiency",
     "owlAnimationLabel": "An animated sleepy owl perched on a branch"
+  },
+  "imageCompressor": {
+    "title": "Image Compressor",
+    "description": "Compress images in batches right in your browser, then preview and download the optimized files.",
+    "privacy": "Everything is processed locally in your browser. Your images are never uploaded.",
+    "settings": {
+      "title": "Compression settings",
+      "quality": "Image quality",
+      "maxWidth": "Maximum width (px)",
+      "maxHeight": "Maximum height (px)",
+      "format": "Output format",
+      "pngNote": "The quality setting usually has little effect on PNG files. Resize them or convert them to WebP for a smaller output."
+    },
+    "formats": {"original": "Keep original format"},
+    "upload": {
+      "title": "Drop images here",
+      "hint": "JPEG, PNG and WebP · multiple files · up to 30 MB each"
+    },
+    "queue": {"title": "Image list", "count": "{count} images"},
+    "progress": {"overall": "Overall progress"},
+    "status": {
+      "waiting": "Waiting",
+      "reading": "Reading",
+      "decoding": "Decoding",
+      "compressing": "Compressing",
+      "done": "Complete",
+      "error": "Failed"
+    },
+    "actions": {
+      "choose": "Choose images",
+      "compress": "Compress images",
+      "compressing": "Compressing…",
+      "preview": "Preview",
+      "download": "Download",
+      "downloadAll": "Download all",
+      "remove": "Remove",
+      "clear": "Clear all",
+      "close": "Close"
+    },
+    "preview": {"title": "Compressed image preview"},
+    "errors": {
+      "rejected": "Skipped {count} duplicate, unsupported, or larger-than-30-MB files.",
+      "compressFailed": "This image could not be decoded or compressed"
+    }
   },
   "fomoTool": {
     "title": "Token Minting Model Calculator",

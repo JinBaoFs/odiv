@@ -7,6 +7,8 @@ export const metadata = {
   lang: "zh",
   tags: ["typescript", "websocket", "web3", "binance", "okx", "bybit"],
   draft: false,
+  featuredOnHome: true,
+  homeOrder: 2,
 }
 
 在行情看板、资产列表和交易详情页中，我们经常需要同时展示多个交易所的代币价格。最直接的做法是在每个组件里创建一个 `WebSocket`，但这很快会带来重复连接、格式不统一、组件卸载后仍在推送，以及断线后无法恢复等问题。

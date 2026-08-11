@@ -31,7 +31,32 @@
     "copySuccess": "复制成功 ✓",
     "thankYouBoss": "感谢老板打赏 ❤️"
   },
-  "Home": {},
+  "Home": {
+    "hero": {
+      "eyebrow": "你好，欢迎来到我的数字花园",
+      "title": "嗨，我是 oDiv！",
+      "description": "我是一名前端开发工程师，长期参与 Web2 与 Web3 产品开发，也持续记录工程实践、开源项目和技术探索。",
+      "secondaryDescription": "这里的内容来自真实的学习与项目经验，希望它们也能为你的开发旅程提供一点帮助。",
+      "about": "关于我",
+      "email": "电子邮件简讯",
+      "owlAnimationLabel": "一只站在树枝上打瞌睡的猫头鹰动画"
+    },
+    "posts": {
+      "title": "博客笔记",
+      "description": "关于前端工程、Web3 开发与日常实践的近期记录。"
+    },
+    "projects": {
+      "title": "开源项目",
+      "description": "我参与、维护或持续投入的产品与开源实践。"
+    },
+    "explore": {
+      "title": "深度探索",
+      "description": "开发与研究过程中常用的工具、数据平台和学习资源。"
+    },
+    "common": {
+      "viewAll": "查看全部"
+    }
+  },
   "Blog": {
     "eyebrow": "Blog",
     "title": "博客",
@@ -45,9 +70,16 @@
     "eyebrow": "Projects",
     "title": "项目",
     "description": "作为一名前端开发者，从事web2以及web3行业多年,所积累的项目经验!",
+    "owlAnimationLabel": "一只站在树枝上打瞌睡的猫头鹰动画",
     "source": "来源",
     "demo": "演示",
-    "doc": "文档"
+    "doc": "文档",
+    "items": {
+      "chaincatcher": {"description": "专业的 Crypto 与 Fintech 资讯与研究平台"},
+      "rootdata": {"description": "一个已服务超过 200 万用户的 Web3 资产数据平台"},
+      "fomo-tool": {"description": "代币发行模拟器，预测价格走势和投资回报"},
+      "image-compressor": {"description": "纯前端多图片压缩工具，支持进度、预览与下载"}
+    }
   },
   "About": {
     "eyebrow": "About",
@@ -58,6 +90,50 @@
     "skillsTitle": "技能图谱",
     "skillsChartDescription": "按照熟练程度排列的技能矩形树图",
     "owlAnimationLabel": "一只站在树枝上打瞌睡的猫头鹰动画"
+  },
+  "imageCompressor": {
+    "title": "图片压缩工具",
+    "description": "在浏览器中批量压缩图片，快速预览并下载优化后的文件。",
+    "privacy": "所有处理均在本地浏览器完成，图片不会上传到服务器。",
+    "settings": {
+      "title": "压缩设置",
+      "quality": "图片质量",
+      "maxWidth": "最大宽度（px）",
+      "maxHeight": "最大高度（px）",
+      "format": "输出格式",
+      "pngNote": "PNG 的质量参数通常不会产生明显的有损压缩；缩小尺寸或转换为 WebP 可获得更小的文件。"
+    },
+    "formats": {"original": "保持原格式"},
+    "upload": {
+      "title": "拖拽图片到这里",
+      "hint": "支持 JPEG、PNG、WebP，可多选，单张最大 30 MB"
+    },
+    "queue": {"title": "图片列表", "count": "共 {count} 张"},
+    "progress": {"overall": "总体进度"},
+    "status": {
+      "waiting": "等待处理",
+      "reading": "正在读取",
+      "decoding": "正在解码",
+      "compressing": "正在压缩",
+      "done": "压缩完成",
+      "error": "处理失败"
+    },
+    "actions": {
+      "choose": "选择图片",
+      "compress": "开始压缩",
+      "compressing": "正在压缩…",
+      "preview": "预览",
+      "download": "下载",
+      "downloadAll": "下载全部",
+      "remove": "删除",
+      "clear": "清空全部",
+      "close": "关闭"
+    },
+    "preview": {"title": "压缩图片预览"},
+    "errors": {
+      "rejected": "已忽略 {count} 个重复、格式不支持或超过 30 MB 的文件。",
+      "compressFailed": "无法解码或压缩这张图片"
+    }
   },
   "fomoTool": {
     "title": "代币铸造模型计算器",
