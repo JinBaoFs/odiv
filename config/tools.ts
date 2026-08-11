@@ -19,7 +19,6 @@ export const tools: ToolItem[] = [
     logoUrl: 'https://chainlist.org/favicon.ico',
     linkUrl: 'https://chainlist.org',
     openInNewTab: true,
-    featuredOnHome: true,
     homeOrder: 1,
   },
   {
@@ -29,7 +28,6 @@ export const tools: ToolItem[] = [
     logoUrl: 'https://public.rootdata.com/images/b12/1671794703895.jpg',
     linkUrl: 'https://etherscan.io',
     openInNewTab: true,
-    featuredOnHome: true,
     homeOrder: 2,
   },
   {
@@ -39,7 +37,6 @@ export const tools: ToolItem[] = [
     logoUrl: 'https://www.coingecko.com/favicon.ico',
     linkUrl: 'https://www.coingecko.com',
     openInNewTab: true,
-    featuredOnHome: true,
     homeOrder: 3,
   },
   {
@@ -73,6 +70,7 @@ export const tools: ToolItem[] = [
     logoUrl: 'https://www.pandatool.org/favicon.ico?favicon.0dmirt6xnqys4.ico',
     linkUrl: 'https://www.pandatool.org',
     openInNewTab: true,
+    featuredOnHome: true,
   },
   {
     id: 'pump-fun',
@@ -80,6 +78,7 @@ export const tools: ToolItem[] = [
     description: {zh: '基于 Solana 的 Meme 代币创建与交易平台', en: 'Solana-based platform for creating and trading meme tokens'},
     logoUrl: 'https://public.rootdata.com/images/b6/1712562719191.jpg',
     linkUrl: 'https://pump.fun',
+    featuredOnHome: true,
     openInNewTab: true,
   },
   {
@@ -88,6 +87,7 @@ export const tools: ToolItem[] = [
     description: {zh: '专注区块链技术内容的中文 Web3 开发者社区', en: 'A Chinese-language Web3 community focused on blockchain development'},
     logoUrl: '/images/toolnav/learnblockchain.jpg',
     linkUrl: 'https://learnblockchain.cn',
+    featuredOnHome: true,
     openInNewTab: true,
   },
   {
@@ -96,6 +96,7 @@ export const tools: ToolItem[] = [
     description: {zh: '连接 Web2 与 Web3 开发者的开源学习社区', en: 'An open-source learning community connecting Web2 and Web3 builders'},
     logoUrl: 'https://openbuild.xyz/favicon.ico',
     linkUrl: 'https://openbuild.xyz',
+    featuredOnHome: true,
     openInNewTab: true,
   },
   {
@@ -113,5 +114,6 @@ export const tools: ToolItem[] = [
     logoUrl: 'https://pancakeswap.finance/favicon.ico',
     linkUrl: 'https://pancakeswap.finance',
     openInNewTab: true,
+    featuredOnHome: true,
   },
 ];
