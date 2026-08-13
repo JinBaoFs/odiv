@@ -1,0 +1,56 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--background) 84%, transparent);
+  backdrop-filter: blur(10px);
+  animation: overlay-in 180ms ease-out both;
+}
+
+.content {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  color: var(--text);
+}
+
+.label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.leaving {
+  pointer-events: none;
+  animation: overlay-out 180ms ease-in both;
+}
+
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (max-width: 640px) {
+  .content canvas {
+    width: 104px !important;
+    height: 104px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .leaving {
+    animation: none;
+  }
+}

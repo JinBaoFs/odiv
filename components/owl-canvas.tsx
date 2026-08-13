@@ -8,6 +8,8 @@ type OwlCanvasProps = {
   height?: number;
   className?: string;
   ariaLabel?: string;
+  variant?: 'idle' | 'loading';
+  decorative?: boolean;
 };
 
 const TAU = Math.PI * 2;
@@ -47,7 +49,8 @@ function drawOwl(
   width: number,
   height: number,
   elapsed: number,
-  reducedMotion: boolean
+  reducedMotion: boolean,
+  variant: 'idle' | 'loading'
 ) {
   context.clearRect(0, 0, width, height);
 
@@ -60,10 +63,18 @@ function drawOwl(
   context.lineCap = 'round';
   context.lineJoin = 'round';
 
+  const isLoading = variant === 'loading';
   const cycle = reducedMotion ? 0.48 : (elapsed % 5200) / 5200;
-  const breathe = reducedMotion ? 0 : Math.sin(elapsed / 620) * 0.8;
-  const sleepyDip = reducedMotion ? 1 : Math.max(0, Math.sin(cycle * Math.PI));
-  const blink = reducedMotion
+  const flap = reducedMotion || !isLoading ? 0 : Math.sin(elapsed / 105);
+  const breathe = reducedMotion
+    ? 0
+    : isLoading
+      ? Math.sin(elapsed / 210) * 1.4
+      : Math.sin(elapsed / 620) * 0.8;
+  const sleepyDip = isLoading ? 0 : reducedMotion ? 1 : Math.max(0, Math.sin(cycle * Math.PI));
+  const blink = isLoading
+    ? 0
+    : reducedMotion
     ? 0.92
     : cycle < 0.1
       ? Math.sin((cycle / 0.1) * Math.PI)
@@ -105,16 +116,39 @@ function drawOwl(
     context.stroke();
   }
 
+  // Loading mode opens the wings and animates them around their shoulder joints.
+  if (isLoading) {
+    const drawWing = (direction: -1 | 1) => {
+      context.save();
+      context.translate(direction * 20, -5);
+      context.scale(direction, 1);
+      context.rotate(((-20 - flap * 28) * Math.PI) / 180);
+      context.fillStyle = '#292a3a';
+      context.beginPath();
+      context.moveTo(0, 0);
+      context.bezierCurveTo(13, -4, 26, 6, 30, 23);
+      context.bezierCurveTo(18, 27, 7, 20, 0, 6);
+      context.closePath();
+      context.fill();
+      context.restore();
+    };
+
+    drawWing(-1);
+    drawWing(1);
+  }
+
   // Body and folded wings.
   context.fillStyle = '#343447';
   context.beginPath();
   context.ellipse(0, 4, 27, 29, 0, 0, TAU);
   context.fill();
-  context.fillStyle = '#292a3a';
-  context.beginPath();
-  context.ellipse(-20, 8, 8, 19, -0.18, 0, TAU);
-  context.ellipse(20, 8, 8, 19, 0.18, 0, TAU);
-  context.fill();
+  if (!isLoading) {
+    context.fillStyle = '#292a3a';
+    context.beginPath();
+    context.ellipse(-20, 8, 8, 19, -0.18, 0, TAU);
+    context.ellipse(20, 8, 8, 19, 0.18, 0, TAU);
+    context.fill();
+  }
 
   // Head, based on the silhouette and colors of the existing logo.
   context.fillStyle = '#343447';
@@ -153,7 +187,7 @@ function drawOwl(
   context.restore();
 
   // A restrained sleep symbol appears only during the deepest part of the nap.
-  if (!reducedMotion && cycle > 0.38 && cycle < 0.72) {
+  if (!isLoading && !reducedMotion && cycle > 0.38 && cycle < 0.72) {
     const progress = (cycle - 0.38) / 0.34;
     context.save();
     context.globalAlpha = Math.sin(progress * Math.PI) * 0.65;
@@ -170,7 +204,9 @@ export function OwlCanvas({
   width = 76,
   height = 76,
   className,
-  ariaLabel = 'A sleepy owl perched on a branch'
+  ariaLabel = 'A sleepy owl perched on a branch',
+  variant = 'idle',
+  decorative = false
 }: OwlCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -190,14 +226,14 @@ export function OwlCanvas({
     };
 
     const render = (time: number) => {
-      drawOwl(context, width, height, time, motionQuery.matches);
+      drawOwl(context, width, height, time, motionQuery.matches, variant);
       if (!motionQuery.matches) frameId = requestAnimationFrame(render);
     };
 
     const handleMotionChange = () => {
       cancelAnimationFrame(frameId);
       resize();
-      if (motionQuery.matches) drawOwl(context, width, height, 0, true);
+      if (motionQuery.matches) drawOwl(context, width, height, 0, true, variant);
       else frameId = requestAnimationFrame(render);
     };
 
@@ -209,15 +245,16 @@ export function OwlCanvas({
       cancelAnimationFrame(frameId);
       motionQuery.removeEventListener('change', handleMotionChange);
     };
-  }, [height, width]);
+  }, [height, variant, width]);
 
   return (
     <canvas
       ref={canvasRef}
       className={[styles.canvas, className].filter(Boolean).join(' ')}
       style={{width, height}}
-      role="img"
-      aria-label={ariaLabel}
+      role={decorative ? undefined : 'img'}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : ariaLabel}
     />
   );
 }

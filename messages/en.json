@@ -1,6 +1,7 @@
 {
   "Common": {
-    "language": "Language"
+    "language": "Language",
+    "routeLoading": "The owl is taking you to the next page…"
   },
   "Sidebar": {
     "title": "My Digital Garden",

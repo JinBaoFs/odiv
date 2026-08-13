@@ -1,6 +1,7 @@
 {
   "Common": {
-    "language": "语言"
+    "language": "语言",
+    "routeLoading": "猫头鹰正在带你前往新页面…"
   },
   "Sidebar": {
     "title": "个人博客",
