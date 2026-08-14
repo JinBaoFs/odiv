@@ -1,0 +1,296 @@
+export const metadata = {
+  title: "2026 AI 编程工具与模型对比：Codex、Claude Code、Cursor 与国产方案",
+  description:
+    "从产品形态、模型选择、代码能力、自动化、费用套餐、隐私与国内可用性等维度，对比 Codex、Claude Code、Cursor、GitHub Copilot、Qwen Code、Kimi Code 和 GLM Coding Plan。",
+  date: "2026-08-12",
+  slug: "ai-coding-tools-comparison-2026",
+  lang: "zh",
+  tags: ["ai", "coding", "codex", "claude-code", "cursor", "llm"],
+  draft: false,
+}
+
+AI 编程产品已经从“补全下一行代码”进入“理解仓库、执行命令、修改多文件并验证结果”的智能体阶段。不过，**Codex、Claude Code、Cursor 是工具，GPT、Claude、Qwen、Kimi、GLM 才是模型或模型家族**。如果不先区分这两层，只比较跑分或月费，很容易得出错误结论。
+
+本文以 **2026 年 8 月 12 日**公开的官方资料为准，对比四款国际主流产品和三种国产方案。价格均为标价，不含可能存在的税费、汇率和地区差异；模型、额度与促销变化很快，订阅前请再次查看文末官方链接。
+
+---
+
+## 一、先看结论
+
+| 产品 | 主要形态 | 模型策略 | 个人付费起点 | 最突出的优势 | 主要短板 |
+| --- | --- | --- | --- | --- | --- |
+| OpenAI Codex | CLI、IDE、桌面端、Web 与云端智能体 | GPT-5.6 Sol / Terra / Luna；Pro 另有 Codex-Spark 预览 | Free；Plus $20/月 | 本地与云端协作完整，自动化和扩展能力强 | 主要绑定 OpenAI 模型，额度规则不是固定 token 包 |
+| Claude Code | 终端、桌面端与 IDE 集成 | Sonnet、Opus、Haiku，可用混合的 `opusplan` | Pro $20/月 | 复杂仓库理解、规划和长任务表现突出 | 高强度使用成本高，模型生态集中在 Claude |
+| Cursor | AI 原生编辑器、CLI、云端 Agent | Cursor Composer 加 OpenAI、Claude、Gemini、Grok 等 | Hobby 免费；Pro $20/月 | 编辑器体验、补全与多模型切换最均衡 | 不同模型消耗额度速度不同，账单预测有门槛 |
+| GitHub Copilot | IDE 插件、CLI、GitHub 与云端 Agent | 多厂商模型，通过 AI Credits 计量 | Free；Pro $10/月 | GitHub、PR、Code Review 和企业治理整合好 | Agent 费用随任务和模型变化，深度工作流较分散 |
+| Qwen Code | 开源 CLI 与 IDE 集成 | Qwen、百炼 Coding Plan、第三方 API 或本地模型 | 客户端免费；推理由服务商计费 | 开源、可换提供商、国内接入和自托管灵活 | 需要自行配置，免费 Qwen OAuth 已停止 |
+| Kimi Code | 官方 CLI、VS Code，也可接入部分第三方 Agent | Kimi 编程模型服务，偏托管式选择 | Andante ¥49/月 | 中文体验、国内支付和套餐接入简单 | 模型自由度低于 Cursor/Qwen，额度池规则较复杂 |
+| GLM Coding Plan | 模型订阅服务，可接入多种 Coding Agent | GLM-5.2、GLM-5-Turbo、GLM-4.7 | Lite / Pro / Max，价格以订购页为准 | 国产模型、主流 Agent 兼容、额度性价比高 | 它不是独立 IDE；高阶模型有倍率，限额为动态估算 |
+
+如果只想快速选择：
+
+- 想要一个“能在本地做事，也能把任务交给云端”的完整智能体平台，优先看 **Codex**。
+- 复杂重构、架构分析和长链路排错较多，优先试 **Claude Code**。
+- 希望保留传统 IDE 手感、依赖强补全并经常切换模型，选 **Cursor**。
+- 团队工作已经高度集中在 GitHub，选 **GitHub Copilot** 的迁移成本最低。
+- 想使用国产模型、国内付费或自建模型，依次关注 **Qwen Code、Kimi Code 和 GLM Coding Plan**。
+
+## 二、应该比较哪些属性？
+
+选择 AI 编程工具时，模型能力只是其中一项。更实用的比较框架包括：
+
+1. **仓库理解**：能否检索跨文件依赖、读取项目规范，并在上下文过长时保留关键信息。
+2. **执行能力**：是否能运行终端、测试、浏览器和外部工具，能否在失败后继续诊断。
+3. **编辑体验**：补全、局部修改、批量 Diff、审阅和回退是否顺手。
+4. **模型自由度**：能否在强模型、快速模型、低价模型或本地模型之间切换。
+5. **成本可预测性**：按月订阅、动态限额、额度池和按 token 计费的透明度不同。
+6. **安全与治理**：权限审批、沙箱、隐私模式、SSO、审计和数据保留策略是否适合团队。
+7. **网络与区域**：在中国大陆的登录、支付、延迟、合规和技术支持是否稳定。
+
+下面的优缺点是产品层面的综合判断，不等同于某个基准测试分数。实际效果还会受到仓库质量、提示词、工具权限和模型版本影响。
+
+## 三、OpenAI Codex
+
+### 产品定位
+
+Codex 是覆盖本地与云端的软件工程智能体。它可以运行在 CLI、IDE 扩展、桌面应用、Web 和移动端，也能把任务交给隔离的云环境执行。项目可用 `AGENTS.md`、Skills、Plugins、MCP 和权限规则固化团队工作方式。
+
+### 模型怎么选
+
+- **GPT-5.6 Sol**：旗舰档，适合复杂设计、疑难缺陷、跨模块重构和高风险审查。
+- **GPT-5.6 Terra**：智能与成本的平衡档，适合大多数日常开发。
+- **GPT-5.6 Luna**：低成本、高吞吐，适合搜索、机械修改、文档和简单测试。
+- **GPT-5.3-Codex-Spark**：面向高频日常编码的快速研究预览，当前属于 Pro 权益。
+
+官方 API 标价按每百万 token 计算：Sol 输入/输出为 **$5 / $30**，Terra 为 **$2 / $12**，Luna 为 **$0.20 / $1.20**；缓存输入更便宜。ChatGPT 订阅中的 Codex 则按共享使用额度和滚动窗口管理，不能把月费直接换算成固定 token 数。
+
+### 费用套餐
+
+- **Free：$0/月**，适合短小任务和体验。
+- **Go：$8/月**，面向轻量编码。
+- **Plus：$20/月**，包含 CLI、IDE、Web、iOS、云端代码审查与 GPT-5.6 模型家族。
+- **Pro：$100/月起**，可选 5 倍或 20 倍于 Plus 的 Codex 用量，并包含 Codex-Spark 预览。
+- **Business：年付 $20/用户/月，月付 $25/用户/月**，增加工作区、SSO、MFA 和默认不使用业务数据训练等能力。
+- **API Key：按 token 付费**，适合 CI、脚本和共享自动化，但不含 GitHub 审查、Slack 等云端产品能力。
+
+### 优势
+
+- 本地修改、云任务、代码审查、自动化和移动端入口形成一套连续工作流。
+- 沙箱、审批、项目指令和扩展系统适合把工程规范变成可复用流程。
+- Sol、Terra、Luna 的分层清晰，能在质量、速度和费用之间切换。
+
+### 劣势
+
+- 主要使用 OpenAI 模型，不适合必须自由切换多家模型的用户。
+- 本地消息和云任务共享滚动窗口，并可能叠加周限额，重度用户需要购买额外 credits。
+- API Key 模式与 ChatGPT 订阅是两套计费逻辑，首次使用时容易混淆。
+
+## 四、Anthropic Claude Code
+
+### 产品定位
+
+Claude Code 以终端为核心，也提供桌面端和 IDE 集成。它能读取仓库、修改文件、执行命令、使用 Git、连接 MCP，并通过 `CLAUDE.md`、Skills、Hooks 和子智能体配置工作方式。它的长处不是单次补全，而是围绕一个目标持续规划、执行和修正。
+
+### 模型怎么选
+
+Claude Code 提供稳定别名，别名会随平台更新：
+
+- **`sonnet`**：日常编码的质量、速度和费用平衡；官方配置文档在本文日期指向 Sonnet 4.6。
+- **`opus` / `best`**：复杂推理、架构与困难排错；当时在 Anthropic API 上指向 Opus 4.7。
+- **`haiku`**：快速、便宜，适合检索、分类和简单子任务。
+- **`opusplan`**：规划阶段使用 Opus，执行阶段切到 Sonnet，是很实用的成本折中。
+
+Max 与 Team Premium 默认可获得更强的 Opus 配置；Pro、Team Standard 和常规 API 账户通常默认 Sonnet。实际可选项可以用 `/model` 查看，企业管理员还可以限制模型列表。
+
+### 费用套餐
+
+- **Free：$0/月**，主要用于 Claude 基础体验，不是重度 Claude Code 方案。
+- **Pro：$20/月，年付折算约 $17/月**，包含 Claude Code，适合个人日常使用。
+- **Max 5x：$100/月；Max 20x：$200/月**，提供更长的连续使用和更高输出限制。
+- **Team / Enterprise**：按席位或合同计费，增加集中管理与企业控制。
+- **Anthropic API**：按模型 token 用量付费；若环境中设置了 API Key，Claude Code 可能改走 API 账单而不是订阅额度。
+
+### 优势
+
+- 对大型仓库、复杂依赖、规划和多阶段修改的处理通常很稳。
+- 终端工作流自然，`opusplan`、Hooks、MCP 和子智能体适合高级用户定制。
+- 可通过 Anthropic API、Amazon Bedrock、Google Vertex AI 等企业渠道部署。
+
+### 劣势
+
+- 原生模型集中在 Claude 家族，多厂商自由度不如 Cursor 或 Qwen Code。
+- 订阅额度同时受滚动窗口和周限额影响；长会话、Opus 和高 effort 会更快消耗额度。
+- 自动执行命令的能力很强，团队必须认真配置权限边界和敏感文件规则。
+
+## 五、Cursor
+
+### 产品定位
+
+Cursor 是基于编辑器体验构建的 AI IDE。它同时提供 Tab 补全、局部编辑、Agent、后台与云端任务、Bugbot、CLI、MCP、Skills 和 Hooks。相比纯终端 Agent，它更适合希望一直看到文件树、Diff 和编辑状态的开发者。
+
+### 模型怎么选
+
+Cursor 的核心优势是多模型：既有自研的 **Composer 2.5** 等模型，也能选择 OpenAI、Anthropic、Google 和 xAI 的前沿模型。`Auto` 会根据任务和可用性自动路由，手动模式则允许为复杂任务选择高价模型。长上下文或深度推理可用 Max Mode，但会更快消耗额度。
+
+实用策略是：Tab 与小修改交给 Cursor 自有模型或 Auto；大规模重构选 Sonnet / Opus / GPT 旗舰模型；重复性后台任务优先选择单位 token 更便宜的模型。
+
+### 费用套餐
+
+- **Hobby：免费**，有限 Agent 请求，可体验 Composer。
+- **Pro：$20/月**，包含约 $20 的模型 API 用量和额外 bonus。
+- **Pro+：$60/月**，约 $70 API 用量和额外 bonus，约为 Pro 的 3 倍 Agent 限额。
+- **Ultra：$200/月**，约 $400 API 用量和额外 bonus，适合多 Agent 和自动化重度用户。
+- **Teams：$40/用户/月起**，增加统一账单、团队隐私模式、分析、SSO 和内部扩展市场；Enterprise 定制报价。
+- 超出套餐后可以开启 **on-demand**，按所选模型 API 价格继续计费。
+
+### 优势
+
+- Tab、Next Edit、Agent 与 Diff 审阅衔接自然，学习成本低。
+- 模型选择最丰富之一，不必把所有任务押在同一供应商上。
+- Privacy Mode、团队管理和后台 Agent 兼顾个人与组织场景。
+
+### 劣势
+
+- 同样一句请求，选择不同模型或开启 Max Mode，额度消耗可能相差很大。
+- Pro、Pro+、Ultra 的“订阅费、保证用量、bonus、按量超额”需要一起理解。
+- 深度依赖 Cursor 编辑器生态；若团队使用多个不同 IDE，推广成本高于插件式 Copilot。
+
+## 六、GitHub Copilot
+
+### 产品定位
+
+GitHub Copilot 从代码补全扩展到了 IDE Chat、Agent Mode、Copilot CLI、云端 Coding Agent、Code Review 和 GitHub.com。它的优势是直接处在仓库、Issue、Pull Request、Actions 和权限体系旁边。
+
+### 模型怎么选
+
+Copilot 提供多厂商模型目录，实际可选模型因功能和套餐而异。轻量模型适合补全和快速问答，Sonnet、Opus、GPT-Codex 等前沿模型适合复杂 Agent 任务。付费使用以 **GitHub AI Credits** 计量，**1 credit = $0.01**；模型越贵、任务越长、工具调用越多，消耗越高。付费套餐中的代码补全和 Next Edit 仍保持不限量，不消耗 AI Credits。
+
+### 费用套餐
+
+- **Free：$0/月**，每月 2,000 次补全，并有有限 Chat、Agent 和 CLI 用量。
+- **Pro：$10/月**，不限量补全，包含云端 Agent、代码审查、模型选择和每月 $15 AI Credits。
+- **Pro+：$39/月**，包含 Opus 等高级模型和每月 $70 AI Credits。
+- **Max：$100/月**，包含每月 $200 AI Credits，并优先获得新模型和功能。
+- **Business / Enterprise**：增加组织级额度池、策略、授权与企业治理，按官方企业价格或合同执行。
+
+### 优势
+
+- 与 GitHub 原生整合最深，Issue 到 PR、Review 和 Actions 的链路短。
+- VS Code、Visual Studio、JetBrains、Xcode、Neovim 等环境覆盖广。
+- Pro 入门价低，团队通常不必统一迁移到新的编辑器。
+
+### 劣势
+
+- AI Credits 的消耗由模型和任务复杂度共同决定，不再只是“每月多少次请求”。
+- 各模型在 Chat、Review、CLI、Agent 中的可用性可能不同。
+- 本地、GitHub 网页和云端 Agent 的体验分布在多个入口，整体感不如单一 AI IDE。
+
+## 七、国产方案
+
+### 1. Qwen Code：开源客户端与模型路由器
+
+Qwen Code 是开源的终端编程 Agent，也可进入 IDE。它不仅能使用阿里云百炼的 Qwen 模型，还能配置 OpenAI 兼容 API、Anthropic、Gemini、Vertex AI 和本地自托管模型，并通过 `/model` 切换。
+
+**模型选择**：阿里云 Coding Plan 当前推荐 Qwen3.7-Plus、Qwen3.6-Plus，也包含 Qwen3-Coder-Next、Qwen3-Coder-Plus，以及部分 Kimi、GLM 和 MiniMax 模型。自带 API Key 时，选择范围取决于服务商。
+
+**费用**：Qwen Code 客户端本身免费开源，但推理不一定免费。官方文档说明 Qwen OAuth 免费层已于 **2026-04-15** 停止；现在可使用阿里云 Coding Plan、Token Plan、标准 API Key、第三方 API 或本地模型。Coding Plan 为固定月费，具体价格以百炼结算页为准；标准 API 则按 token 计费。
+
+**优势**：开源、协议适配广、支持国内端点和本地模型，适合想控制供应商与数据路径的用户。
+
+**劣势**：模型、Key、Base URL 和费用需要自己管理；不同服务商的工具调用兼容性与输出质量并不完全一致。
+
+### 2. Kimi Code：国内订阅式编程 Agent
+
+Kimi Code 提供官方 CLI 和 VS Code 入口，也允许把 Kimi Code 权益用于 Claude Code、Roo Code 等官方支持的第三方工具。它更像一套托管好的 Kimi 编程模型服务，模型选择自由度不如 Cursor/Qwen Code，但上手和支付简单。
+
+**费用套餐**：
+
+- **Andante：¥49/月**，Kimi Code 1 倍额度。
+- **Moderato：¥99/月**，Kimi Code 4 倍额度。
+- **Allegretto：¥199/月**，Kimi Code 20 倍额度。
+- **Allegro：¥699/月**，Kimi Code 60 倍额度。
+
+Kimi Code 额度包含在会员费中，按 7 天刷新，同时存在 5 小时滚动频控和周限额。会员功能共享总额度池；用完后可购买按实际用量扣费的加油包。官方文档还提示新的会员体系即将拆分 Kimi 会员与 Kimi Code 权益，因此订阅前应查看最新页面。
+
+**优势**：中文交互自然、人民币支付、CLI 与 VS Code 齐全，并可把同一权益接入部分第三方 Agent。
+
+**劣势**：模型选择不够开放；周额度、5 小时窗口、共享月度额度和加油包并存，必须关注控制台用量。
+
+### 3. GLM Coding Plan：给现有 Agent 更换国产模型
+
+GLM Coding Plan 不是新的编辑器，而是智谱提供的编码模型订阅。它可接入 Claude Code、Qwen Code、OpenCode、TRAE、CodeBuddy、Kilo Code 等受支持工具，适合喜欢现有客户端、但想换成国产模型与国内账单的用户。
+
+**模型选择**：所有套餐支持 **GLM-5.2、GLM-5-Turbo、GLM-4.7**；旧的 GLM-5.1 / GLM-5 调用会自动迁移到 GLM-5.2。GLM-5.2 面向长任务，官方标注为 1M 上下文、128K 最大输出。
+
+**套餐与额度**：
+
+| 套餐 | 每 5 小时预估上限 | 每周预估上限 | 推荐并发场景 |
+| --- | --- | --- | --- |
+| Lite | 约 80 prompts | 约 400 prompts | 单项目 |
+| Pro | 约 400 prompts | 约 2,000 prompts | 1–2 个项目 |
+| Max | 约 1,600 prompts | 约 8,000 prompts | 2 个以上项目 |
+
+一次 prompt 可能触发 15–20 次模型调用，因此表中数字是估算而非保证值。GLM-5.2 与 GLM-5-Turbo 在高峰期和非高峰期还会按不同倍率消耗额度。官方静态文档没有固定列出各档人民币月费，购买价、活动价和团队价应以订购页为准。
+
+**优势**：兼容多款 Agent、国内访问与付款方便、中文和代码任务兼顾，并附带搜索、网页读取、仓库与视觉 MCP 额度。
+
+**劣势**：客户端体验取决于接入的第三方工具；高阶模型倍率和动态 prompt 估算降低了费用可预测性；套餐 Key 不能用于未获支持的通用 API 场景。
+
+## 八、主观能力矩阵
+
+以下 1–5 分用于描述产品定位，不是实验室跑分；5 表示该维度相对突出。
+
+| 产品 | 长任务与推理 | IDE 编辑体验 | 多模型自由度 | 云端与自动化 | 国内接入便利 | 费用易理解 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Codex | 5 | 4 | 2 | 5 | 2 | 3 |
+| Claude Code | 5 | 3 | 2 | 4 | 2 | 3 |
+| Cursor | 4 | 5 | 5 | 4 | 3 | 2 |
+| GitHub Copilot | 4 | 4 | 4 | 5 | 3 | 3 |
+| Qwen Code | 4 | 3 | 5 | 3 | 5 | 3 |
+| Kimi Code | 4 | 3 | 2 | 3 | 5 | 3 |
+| GLM Coding Plan | 4 | 取决于客户端 | 2 | 取决于客户端 | 5 | 3 |
+
+## 九、按使用场景选择
+
+### 个人开发者与学生
+
+先用 GitHub Copilot Free、Cursor Hobby 或 Qwen Code 加低价/本地模型。需要稳定完成多文件任务后，再升级到 Copilot Pro、Cursor Pro、Codex Plus 或 Claude Pro。不要一开始就为最高档模型付费。
+
+### 全职工程师
+
+- 工作在编辑器内、补全频率高：**Cursor Pro / Pro+**。
+- 终端驱动、复杂仓库较多：**Claude Code Pro / Max** 或 **Codex Plus / Pro**。
+- Issue、PR 和 Review 是主流程：**GitHub Copilot Pro+**。
+
+### 中国大陆开发者
+
+优先评估 **Qwen Code + 百炼 Coding Plan、Kimi Code、GLM Coding Plan**。它们在网络、人民币支付、中文技术语境和本地支持上通常更省心。若项目同时服务海外用户，可以保留 Cursor 或开源 Qwen Code 作为多模型入口。
+
+### 团队与企业
+
+不要只看模型回答质量，还要检查：代码是否用于训练、数据保留位置、SSO/SCIM、审计日志、模型白名单、预算上限、密钥管理、云端执行环境以及供应商退出方案。GitHub Copilot、Codex Business/Enterprise、Cursor Teams、Claude Team/Enterprise 都有管理能力；国产方案则需要进一步确认合同、数据地域和团队版控制项。
+
+## 十、降低成本的通用方法
+
+1. 检索、格式化和文档任务使用快速/低价模型，架构与疑难问题再切旗舰模型。
+2. 为每个任务新开会话，避免无关历史持续占用上下文。
+3. 把测试命令、目录约定和验收标准写入 `AGENTS.md`、`CLAUDE.md` 或 Rules，减少反复解释。
+4. 对 Cursor、Copilot、Kimi 等额度型产品开启用量提醒和超额消费上限。
+5. 让 Agent 先给计划和影响范围，再执行高成本的全仓扫描或大规模重构。
+6. 用真实仓库做一周试用，记录“完成一个可合并任务”的总费用，而不是只比较单次回答价格。
+
+## 总结
+
+没有一款工具在所有维度都最好。Codex 强在完整的本地与云端智能体平台，Claude Code 强在深度推理和终端长任务，Cursor 强在编辑器体验与多模型，GitHub Copilot 强在开发协作链路。Qwen Code 提供最开放的国产客户端路线，Kimi Code 提供易上手的国内订阅体验，GLM Coding Plan 则适合给现有 Agent 换上国产模型。
+
+最可靠的选择方法是：先确定自己偏向 **IDE 补全、终端智能体、云端委派还是企业治理**，再用同一组真实任务比较成功率、耗时、人工修正量和最终费用。模型跑分只能回答“可能有多聪明”，工作流测试才能回答“是否真的适合你”。
+
+## 官方资料
+
+- [OpenAI Codex 定价](https://learn.chatgpt.com/docs/pricing) 与 [OpenAI 模型目录](https://developers.openai.com/api/docs/models)
+- [Claude Code 模型配置](https://code.claude.com/docs/en/model-config) 与 [Claude 套餐价格](https://claude.com/pricing)
+- [Cursor 套餐价格](https://cursor.com/pricing) 与 [Cursor 模型文档](https://docs.cursor.com/models)
+- [GitHub Copilot 套餐与价格](https://github.com/features/copilot/plans)
+- [Qwen Code 模型提供商配置](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/model-providers/) 与 [阿里云 Coding Plan](https://help.aliyun.com/en/model-studio/coding-plan)
+- [Kimi 会员价格](https://www.kimi.com/zh-cn/help/membership/membership-pricing) 与 [Kimi Code 权益说明](https://www.kimi.com/zh-cn/help/kimi-code/benefits)
+- [GLM Coding Plan 套餐概览](https://docs.bigmodel.cn/cn/coding-plan/overview)

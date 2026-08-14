@@ -13,7 +13,7 @@ export const siteConfig = {
   social: {
     github: 'https://github.com/',
     x: 'https://x.com/',
-    email: 'mailto:you@example.com',
+    email: 'mailto:13631531284@163.com',
     bluesky: 'https://bsky.app/',
     rss: '/rss.xml'
   }

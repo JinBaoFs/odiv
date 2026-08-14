@@ -1,0 +1,296 @@
+export const metadata = {
+  title: "AI Coding Tools and Models in 2026: Codex, Claude Code, Cursor, and Chinese Alternatives",
+  description:
+    "A practical comparison of Codex, Claude Code, Cursor, GitHub Copilot, Qwen Code, Kimi Code, and GLM Coding Plan across models, coding workflows, pricing, privacy, and regional availability.",
+  date: "2026-08-12",
+  slug: "ai-coding-tools-comparison-2026",
+  lang: "en",
+  tags: ["ai", "coding", "codex", "claude-code", "cursor", "llm"],
+  draft: false,
+}
+
+AI coding products have moved beyond completing the next line. They can now understand repositories, run commands, edit multiple files, and verify their own work. One distinction is essential: **Codex, Claude Code, and Cursor are tools; GPT, Claude, Qwen, Kimi, and GLM are models or model families**. Comparing a tool directly with a model often leads to the wrong conclusion.
+
+This guide compares four well-known international products and three Chinese alternatives using public information available on **August 12, 2026**. Listed prices exclude possible taxes, exchange-rate effects, and regional differences. Models, quotas, and promotions change quickly, so check the official links at the end before subscribing.
+
+---
+
+## 1. The short version
+
+| Product | Primary form | Model strategy | Entry price for individuals | Standout strength | Main limitation |
+| --- | --- | --- | --- | --- | --- |
+| OpenAI Codex | CLI, IDE, desktop, web, and cloud agent | GPT-5.6 Sol / Terra / Luna; Codex-Spark preview on Pro | Free; Plus $20/month | Complete local-to-cloud workflow and strong automation | Mostly tied to OpenAI models; quotas are not fixed token bundles |
+| Claude Code | Terminal, desktop, and IDE integrations | Sonnet, Opus, Haiku, plus hybrid `opusplan` | Pro $20/month | Strong repository reasoning, planning, and long-running work | Heavy use can be expensive; centered on Claude models |
+| Cursor | AI-native editor, CLI, and cloud agents | Cursor Composer plus OpenAI, Claude, Gemini, Grok, and others | Hobby free; Pro $20/month | Excellent editing experience and broad model choice | Model choice changes how quickly usage is consumed |
+| GitHub Copilot | IDE extensions, CLI, GitHub, and cloud agent | Multi-provider catalog measured in AI Credits | Free; Pro $10/month | Deep GitHub, PR, review, and enterprise integration | Agent cost varies with the task and model |
+| Qwen Code | Open-source CLI and IDE integration | Qwen, Model Studio Coding Plan, third-party APIs, or local models | Client is free; inference is billed separately | Open source, provider flexibility, and self-hosting | Requires configuration; free Qwen OAuth has ended |
+| Kimi Code | Official CLI, VS Code, and selected third-party agents | Managed Kimi coding model service | Andante ¥49/month | Chinese-language experience, local payment, simple onboarding | Less model freedom and a more complex shared-quota system |
+| GLM Coding Plan | Model subscription used inside supported coding agents | GLM-5.2, GLM-5-Turbo, and GLM-4.7 | Lite / Pro / Max; checkout price varies | Chinese models, broad agent compatibility, high usage value | Not a standalone IDE; dynamic limits and model multipliers |
+
+For a quick decision:
+
+- Choose **Codex** for a cohesive agent that works locally and can delegate work to the cloud.
+- Try **Claude Code** first for complex refactors, architecture analysis, and long debugging chains.
+- Choose **Cursor** if you want a familiar editor, strong completion, and frequent model switching.
+- Choose **GitHub Copilot** when your team's workflow already revolves around GitHub.
+- Consider **Qwen Code, Kimi Code, and GLM Coding Plan** for Chinese models, mainland connectivity, local billing, or self-hosting.
+
+## 2. What should you compare?
+
+Model quality is only one part of an AI coding product. A more useful framework includes:
+
+1. **Repository understanding:** cross-file retrieval, project instructions, and context management.
+2. **Execution:** terminal, tests, browsers, external tools, and recovery after a failed attempt.
+3. **Editing:** completion, targeted edits, multi-file diffs, review, and rollback.
+4. **Model freedom:** switching among capable, fast, inexpensive, or local models.
+5. **Cost predictability:** subscriptions, rolling limits, credit pools, and token billing behave differently.
+6. **Security and governance:** approvals, sandboxes, privacy, SSO, audit logs, and retention.
+7. **Network and region:** login, billing, latency, compliance, and support can differ by country.
+
+The strengths and weaknesses below are product-level judgments, not benchmark scores. Results still depend on repository quality, instructions, permissions, and the exact model version.
+
+## 3. OpenAI Codex
+
+### Positioning
+
+Codex is a software engineering agent spanning local and cloud work. It is available through a CLI, IDE extension, desktop app, web, and mobile surfaces, and can delegate tasks to isolated cloud environments. Teams can encode workflows with `AGENTS.md`, Skills, Plugins, MCP, and permission rules.
+
+### Model selection
+
+- **GPT-5.6 Sol:** the flagship for difficult design, cross-module refactoring, subtle bugs, and high-risk review.
+- **GPT-5.6 Terra:** a balance of intelligence and cost for most development work.
+- **GPT-5.6 Luna:** low-cost and high-throughput for search, mechanical edits, docs, and simple tests.
+- **GPT-5.3-Codex-Spark:** a fast research preview for frequent everyday coding, currently included with Pro.
+
+Official API list prices per million tokens are **$5 input / $30 output** for Sol, **$2 / $12** for Terra, and **$0.20 / $1.20** for Luna, with cheaper cached input. Codex inside a ChatGPT subscription uses shared allowances and rolling windows rather than a fixed monthly token allocation.
+
+### Pricing and plans
+
+- **Free: $0/month**, for short tasks and evaluation.
+- **Go: $8/month**, for lightweight coding.
+- **Plus: $20/month**, including CLI, IDE, web, iOS, cloud code review, and the GPT-5.6 family.
+- **Pro: from $100/month**, with a choice of 5x or 20x Plus usage and access to the Codex-Spark preview.
+- **Business: $20/user/month annually or $25 monthly**, adding a dedicated workspace, SSO, MFA, and no training on business data by default.
+- **API key: token-based billing**, useful for CI, scripts, and shared automation, but without product-level cloud integrations such as GitHub review or Slack.
+
+### Advantages
+
+- Local edits, cloud tasks, review, automation, and mobile access form a continuous workflow.
+- Sandboxing, approvals, project instructions, and extensions make engineering practices reusable.
+- Sol, Terra, and Luna offer a clear quality, speed, and price ladder.
+
+### Disadvantages
+
+- The native experience primarily uses OpenAI models.
+- Local and cloud activity shares rolling limits and may also be subject to weekly limits.
+- API-key billing and ChatGPT subscription billing are separate systems and can be confusing initially.
+
+## 4. Anthropic Claude Code
+
+### Positioning
+
+Claude Code is terminal-first, with desktop and IDE integrations. It can inspect a repository, edit files, execute commands, work with Git, connect to MCP, and follow project conventions through `CLAUDE.md`, Skills, Hooks, and subagents. Its main value is sustained planning and execution rather than single-shot completion.
+
+### Model selection
+
+Claude Code exposes stable aliases that can move as the platform evolves:
+
+- **`sonnet`:** the everyday balance of quality, speed, and cost; the official model configuration mapped it to Sonnet 4.6 on the article date.
+- **`opus` / `best`:** for difficult reasoning, architecture, and debugging; mapped to Opus 4.7 on the Anthropic API at that time.
+- **`haiku`:** fast and economical for retrieval, classification, and simple sub-tasks.
+- **`opusplan`:** Opus for planning and Sonnet for execution, a useful cost compromise.
+
+Max and Team Premium generally receive a stronger Opus default, while Pro, Team Standard, and regular API accounts usually default to Sonnet. Run `/model` to see the exact choices available to an account; enterprise administrators can restrict the catalog.
+
+### Pricing and plans
+
+- **Free: $0/month**, mainly for evaluating Claude rather than sustained Claude Code work.
+- **Pro: $20/month, or about $17/month with annual billing**, including Claude Code.
+- **Max 5x: $100/month; Max 20x: $200/month**, for longer sessions and higher output limits.
+- **Team / Enterprise:** seat- or contract-based pricing with centralized administration.
+- **Anthropic API:** pay per model token. If an `ANTHROPIC_API_KEY` is present, Claude Code may use API billing instead of subscription usage.
+
+### Advantages
+
+- Usually strong on large repositories, complex dependencies, planning, and multi-stage changes.
+- `opusplan`, Hooks, MCP, and subagents make the terminal workflow highly customizable.
+- Enterprise deployments can route through the Anthropic API, Amazon Bedrock, or Google Vertex AI.
+
+### Disadvantages
+
+- Native model selection stays within the Claude family.
+- Rolling and weekly limits apply; long contexts, Opus, and high effort consume usage faster.
+- Powerful command execution makes carefully designed permission and sensitive-file rules essential.
+
+## 5. Cursor
+
+### Positioning
+
+Cursor is an AI-native editor with Tab completion, targeted edits, Agent, background and cloud tasks, Bugbot, a CLI, MCP, Skills, and Hooks. It suits developers who want the file tree, diff, and editor state visible while an agent works.
+
+### Model selection
+
+Cursor combines proprietary models such as **Composer 2.5** with frontier models from OpenAI, Anthropic, Google, and xAI. `Auto` routes requests based on the task and availability, while manual selection lets users spend more on difficult work. Max Mode enables longer context or deeper reasoning but consumes usage faster.
+
+A practical approach is to use Cursor's models or Auto for Tab and small edits, Sonnet / Opus / a flagship GPT model for large refactors, and lower-cost models for repetitive background work.
+
+### Pricing and plans
+
+- **Hobby: free**, with limited Agent requests and access to Composer.
+- **Pro: $20/month**, with roughly $20 of model API usage plus bonus capacity.
+- **Pro+: $60/month**, with roughly $70 of API usage plus bonus capacity and about 3x Pro Agent limits.
+- **Ultra: $200/month**, with roughly $400 of API usage plus bonus capacity for heavy multi-agent use.
+- **Teams: from $40/user/month**, adding centralized billing, team privacy, analytics, SSO, and an internal extension marketplace; Enterprise is custom.
+- **On-demand usage** continues at the selected model's API rate after the included pool is exhausted.
+
+### Advantages
+
+- Tab, Next Edit, Agent, and diff review fit together naturally.
+- One of the broadest model catalogs, reducing dependence on one provider.
+- Privacy Mode, team controls, and background agents cover both individual and organizational use.
+
+### Disadvantages
+
+- The same task can consume very different amounts depending on model choice and Max Mode.
+- Subscription price, guaranteed usage, bonus capacity, and on-demand overage must be understood together.
+- Teams using several different IDEs may find adoption harder than a plugin-based product.
+
+## 6. GitHub Copilot
+
+### Positioning
+
+GitHub Copilot now covers IDE Chat, Agent Mode, Copilot CLI, a cloud coding agent, code review, and GitHub.com in addition to completion. Its strongest advantage is proximity to repositories, issues, pull requests, Actions, and existing access controls.
+
+### Model selection
+
+Copilot offers models from multiple vendors, although availability varies by feature and plan. Lightweight models fit completion and quick questions; Sonnet, Opus, GPT-Codex, and other frontier models fit complex agent tasks. Paid usage is measured in **GitHub AI Credits**, where **1 credit = $0.01**. A more expensive model, longer context, and more tool calls all increase consumption. Unlimited completion and Next Edit on paid plans do not use AI Credits.
+
+### Pricing and plans
+
+- **Free: $0/month**, with 2,000 completions each month and limited Chat, Agent, and CLI use.
+- **Pro: $10/month**, with unlimited completion, cloud agent, review, model selection, and $15 in monthly AI Credits.
+- **Pro+: $39/month**, with premium models including Opus and $70 in monthly AI Credits.
+- **Max: $100/month**, with $200 in monthly AI Credits and priority access to new models and features.
+- **Business / Enterprise:** organizational credit pools, policies, licensing, and governance under current enterprise pricing or contract terms.
+
+### Advantages
+
+- The deepest native integration with GitHub, shortening the issue-to-PR-to-review path.
+- Broad support for VS Code, Visual Studio, JetBrains, Xcode, Neovim, and other environments.
+- A low Pro entry price without requiring the team to adopt one new editor.
+
+### Disadvantages
+
+- AI Credit consumption depends on both model and task complexity.
+- A model can be available in Chat but not necessarily in every review, CLI, or agent feature.
+- Local, web, and cloud-agent experiences are distributed across several interfaces.
+
+## 7. Chinese alternatives
+
+### 7.1 Qwen Code: an open-source client and model router
+
+Qwen Code is an open-source terminal coding agent with IDE integration. It can use Alibaba Model Studio's Qwen models, OpenAI-compatible APIs, Anthropic, Gemini, Vertex AI, and local self-hosted models, with switching through `/model`.
+
+**Model choice:** Alibaba Cloud's Coding Plan currently recommends Qwen3.7-Plus and Qwen3.6-Plus and also includes Qwen3-Coder-Next, Qwen3-Coder-Plus, and selected Kimi, GLM, and MiniMax models. With a separate API key, the provider determines the catalog.
+
+**Cost:** the Qwen Code client is free and open source, but inference is not necessarily free. Official documentation states that the Qwen OAuth free tier ended on **April 15, 2026**. Current options include Alibaba Cloud Coding Plan, Token Plan, a standard API key, third-party APIs, or local inference. Coding Plan uses a monthly subscription with the checkout page as the source of truth; standard APIs use token billing.
+
+**Advantages:** open source, broad protocol support, mainland endpoints, and local inference make provider and data-path control possible.
+
+**Disadvantages:** users must manage models, keys, base URLs, and costs, while tool-use compatibility and quality vary among providers.
+
+### 7.2 Kimi Code: a Chinese subscription coding agent
+
+Kimi Code provides an official CLI and VS Code experience. Its entitlement can also be used in officially supported third-party agents such as Claude Code and Roo Code. It is closer to a managed Kimi coding service than an open model marketplace, which simplifies setup at the cost of model freedom.
+
+**Plans:**
+
+- **Andante: ¥49/month**, with 1x Kimi Code usage.
+- **Moderato: ¥99/month**, with 4x usage.
+- **Allegretto: ¥199/month**, with 20x usage.
+- **Allegro: ¥699/month**, with 60x usage.
+
+Kimi Code is included in membership pricing. Quotas refresh on a seven-day cycle and are also subject to a rolling five-hour window and weekly limits. Membership features share a total usage pool; Extra Usage can continue on metered billing after included usage is exhausted. The official documentation says a new membership system will separate general Kimi and Kimi Code entitlements, so verify the current structure before buying.
+
+**Advantages:** natural Chinese interaction, RMB billing, official CLI and VS Code support, and entitlement reuse in selected third-party agents.
+
+**Disadvantages:** less model choice, plus several interacting limits: weekly usage, a five-hour window, shared monthly usage, and Extra Usage.
+
+### 7.3 GLM Coding Plan: bring Chinese models to an existing agent
+
+GLM Coding Plan is not another editor. It is Zhipu AI's coding-model subscription for supported clients including Claude Code, Qwen Code, OpenCode, TRAE, CodeBuddy, and Kilo Code. It fits users who like an existing client but want Chinese models and local billing.
+
+**Model choice:** all plans support **GLM-5.2, GLM-5-Turbo, and GLM-4.7**. Calls to older GLM-5.1 / GLM-5 names migrate to GLM-5.2. GLM-5.2 targets long-running tasks and is documented with a 1M context window and 128K maximum output.
+
+**Plans and limits:**
+
+| Plan | Estimated five-hour limit | Estimated weekly limit | Suggested concurrency |
+| --- | --- | --- | --- |
+| Lite | About 80 prompts | About 400 prompts | One project |
+| Pro | About 400 prompts | About 2,000 prompts | One or two projects |
+| Max | About 1,600 prompts | About 8,000 prompts | More than two projects |
+
+One prompt can trigger 15–20 model calls, so these figures are estimates rather than guaranteed request counts. GLM-5.2 and GLM-5-Turbo can also consume quota at different peak and off-peak multipliers. The static official documentation does not list fixed RMB prices for every tier; use the checkout page for the current subscription, promotion, and team price.
+
+**Advantages:** compatibility with several agents, convenient mainland access and payment, good Chinese support, and bundled search, web-reading, repository, and vision MCP quotas.
+
+**Disadvantages:** the client experience depends on the third-party tool; multipliers and estimated prompt limits reduce cost predictability; plan keys cannot be used as unrestricted general API keys.
+
+## 8. A subjective capability matrix
+
+Scores from 1–5 describe positioning, not laboratory benchmarks. A 5 means the product is relatively strong in that dimension.
+
+| Product | Long tasks and reasoning | IDE experience | Model freedom | Cloud and automation | Mainland convenience | Pricing clarity |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Codex | 5 | 4 | 2 | 5 | 2 | 3 |
+| Claude Code | 5 | 3 | 2 | 4 | 2 | 3 |
+| Cursor | 4 | 5 | 5 | 4 | 3 | 2 |
+| GitHub Copilot | 4 | 4 | 4 | 5 | 3 | 3 |
+| Qwen Code | 4 | 3 | 5 | 3 | 5 | 3 |
+| Kimi Code | 4 | 3 | 2 | 3 | 5 | 3 |
+| GLM Coding Plan | 4 | Client-dependent | 2 | Client-dependent | 5 | 3 |
+
+## 9. Recommendations by scenario
+
+### Individual developers and students
+
+Start with GitHub Copilot Free, Cursor Hobby, or Qwen Code connected to an inexpensive or local model. Upgrade to Copilot Pro, Cursor Pro, Codex Plus, or Claude Pro only after multi-file tasks become a regular need.
+
+### Full-time engineers
+
+- Editor-first with frequent completion: **Cursor Pro / Pro+**.
+- Terminal-first with complex repositories: **Claude Code Pro / Max** or **Codex Plus / Pro**.
+- Issue, PR, and review as the primary workflow: **GitHub Copilot Pro+**.
+
+### Developers in mainland China
+
+Evaluate **Qwen Code with Model Studio Coding Plan, Kimi Code, and GLM Coding Plan** first. Mainland connectivity, RMB billing, Chinese technical context, and local support are often simpler. Keep Cursor or open-source Qwen Code as a multi-model entry point when projects also target global users.
+
+### Teams and enterprises
+
+Do not evaluate answer quality alone. Check whether code is used for training, data retention and residency, SSO/SCIM, audit logs, model allowlists, budgets, key management, cloud execution, and an exit strategy. GitHub Copilot, Codex Business/Enterprise, Cursor Teams, and Claude Team/Enterprise provide administration; Chinese services require the same contract and data-region review.
+
+## 10. General ways to control cost
+
+1. Use fast, inexpensive models for retrieval, formatting, and docs; reserve flagship models for architecture and hard bugs.
+2. Start a new session per task so unrelated history does not keep consuming context.
+3. Put test commands, directory conventions, and acceptance criteria in `AGENTS.md`, `CLAUDE.md`, or Rules.
+4. Enable usage alerts and hard overage caps for credit-based products.
+5. Ask for a plan and affected-file list before an expensive repository-wide scan or refactor.
+6. Trial each product on a real repository for a week and record the cost of one mergeable outcome, not one response.
+
+## Summary
+
+No product wins every category. Codex stands out as a complete local and cloud agent platform. Claude Code excels at deep reasoning and long terminal tasks. Cursor leads in editor experience and model choice. GitHub Copilot is strongest across the collaboration lifecycle. Qwen Code offers the most open Chinese client route, Kimi Code offers straightforward domestic subscription access, and GLM Coding Plan brings Chinese models to existing agents.
+
+The most reliable method is to decide whether your priority is **IDE completion, a terminal agent, cloud delegation, or enterprise governance**, then test the same real tasks for success rate, elapsed time, manual correction, and final cost. Benchmarks estimate how smart a model may be; workflow trials show whether the product actually fits.
+
+## Official sources
+
+- [OpenAI Codex pricing](https://learn.chatgpt.com/docs/pricing) and [OpenAI model catalog](https://developers.openai.com/api/docs/models)
+- [Claude Code model configuration](https://code.claude.com/docs/en/model-config) and [Claude plans](https://claude.com/pricing)
+- [Cursor pricing](https://cursor.com/pricing) and [Cursor model documentation](https://docs.cursor.com/models)
+- [GitHub Copilot plans and pricing](https://github.com/features/copilot/plans)
+- [Qwen Code model-provider configuration](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/model-providers/) and [Alibaba Cloud Coding Plan](https://help.aliyun.com/en/model-studio/coding-plan)
+- [Kimi membership pricing](https://www.kimi.com/zh-cn/help/membership/membership-pricing) and [Kimi Code benefits](https://www.kimi.com/zh-cn/help/kimi-code/benefits)
+- [GLM Coding Plan overview](https://docs.bigmodel.cn/cn/coding-plan/overview)
