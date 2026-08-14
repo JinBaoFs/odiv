@@ -7,7 +7,7 @@ export type ProjectAction = {
 };
 
 export type ProjectItem = {
-  id: 'chaincatcher' | 'rootdata' | 'fomo-tool' | 'image-compressor';
+  id: 'chaincatcher' | 'rootdata' | 'fomo-tool' | 'image-compressor' | 'atb-dapp';
   name: string;
   followerCount: number;
   date: string;
@@ -55,6 +55,16 @@ export const projects: ProjectItem[] = [
     actions: [
       {label: 'demo', href: '/image-compressor', openInNewTab: true},
       {label: 'doc', href: '/blog/image-compressor-guide', openInNewTab: true},
+    ],
+  },
+  {
+    id: 'atb-dapp',
+    name: 'ATB DApp',
+    followerCount: 172,
+    date: '2023',
+    actions: [
+      {label: 'source', href: 'https://github.com/JinBaoFs/ATB-dapp', openInNewTab: true},
+      {label: 'doc', href: '/blog/atb-dapp-case-study', openInNewTab: true},
     ],
   },
 ];

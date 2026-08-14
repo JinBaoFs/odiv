@@ -89,6 +89,16 @@ export function BlogList({ posts, locale, initialQuery = "", labels }: BlogListP
                     <Link href={`/blog/${post.slug}`} className="blog-post-title">
                       {post.title}
                     </Link>
+                    {post.tags && post.tags.length > 0 ? (
+                      <ul
+                        className="blog-post-meta-tags"
+                        aria-label={locale === "zh" ? "文章标签" : "Post tags"}
+                      >
+                        {post.tags.map((tag) => (
+                          <li key={tag}>{tag}</li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </li>
                 ))}
               </ul>

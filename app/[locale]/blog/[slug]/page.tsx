@@ -35,7 +35,9 @@ export default async function BlogPostPage({ params }: Props) {
               </ul>
             ) : null}
           </header>
-          <Content />
+          <div className="blog-post-content">
+            <Content />
+          </div>
         </article>
       </main>
     )

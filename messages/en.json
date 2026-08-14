@@ -79,7 +79,8 @@
       "chaincatcher": {"description": "Professional Crypto & Fintech news and research platform."},
       "rootdata": {"description": "A Web3 asset data platform serving more than two million users."},
       "fomo-tool": {"description": "Token issuance simulator for price trends and ROI prediction."},
-      "image-compressor": {"description": "A client-side batch image compressor with progress, preview, and download support."}
+      "image-compressor": {"description": "A client-side batch image compressor with progress, preview, and download support."},
+      "atb-dapp": {"description": "An archived BSC DApp frontend featuring wallet connection, ATB staking, signature-based claims, and team dashboards."}
     }
   },
   "About": {

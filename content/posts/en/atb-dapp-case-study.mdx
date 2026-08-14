@@ -1,0 +1,121 @@
+export const metadata = {
+  title: "ATB DApp: An Engineering Retrospective on a BSC Web3 Frontend",
+  description:
+    "A retrospective on ATB DApp's wallet integration, token staking, signature-based claims, team dashboards, and responsive design. The service is no longer active and is preserved as a frontend case study.",
+  date: "2024-07-29",
+  updatedAt: "2026-08-14",
+  slug: "atb-dapp-case-study",
+  lang: "en",
+  tags: ["web3", "dapp", "next.js", "wagmi", "bsc"],
+  cover: "/images/projects/atb-dapp/service-desktop.png",
+  draft: false,
+}
+
+> **Project status: archived.** The hosted ATB DApp service is no longer active, so this article does not provide an interactive demo. Do not transfer assets to any historical project address or contract. This is an engineering record, not investment advice.
+
+## Project overview
+
+ATB DApp was a Web3 frontend built for BNB Smart Chain (BSC). It combined wallet connection, USDT activation, ATB staking, reward claims, and team statistics into a complete DApp interface.
+
+Only the frontend repository has been preserved. On-chain balances and transactions depend on deployed contracts, while user profiles, rewards, teams, signatures, and records depend on a separate backend. The repository remains useful for studying the interface and integration architecture, but it cannot reproduce the original product after the backend service was discontinued.
+
+[View the ATB DApp frontend source](https://github.com/JinBaoFs/ATB-dapp)
+
+![ATB DApp desktop staking and rewards interface](/images/projects/atb-dapp/service-desktop.png)
+
+*The desktop staking and rewards dashboard from the historical application.*
+
+## Core user flow
+
+The frontend organized the main journey into several connected steps:
+
+1. Connect a browser wallet through RainbowKit.
+2. Validate the network and read USDT, ATB, and pool balances.
+3. Transfer the required USDT amount to activate the service.
+4. Transfer ATB to a backend-provided recipient address to stake it.
+5. Load reward, team-level, and referral data from the backend.
+6. Request signed claim parameters from the backend and submit them to the contract's `withdrawPermit` function.
+
+This architecture split responsibilities across three layers: the frontend and contracts handled wallet transactions, the backend maintained business state, and signed claims connected backend authorization to on-chain settlement.
+
+## Frontend implementation
+
+### Wallet and network integration
+
+RainbowKit provided the connection interface, while wagmi and viem handled on-chain reads and writes. The provider registered BSC mainnet and supported common wallets including MetaMask, WalletConnect, Trust Wallet, TokenPocket, and OKX Wallet.
+
+The application read USDT, ATB, LP Token, and pool balances, and refreshed them when the connected account changed. Contract addresses, ABIs, and the chain ID were kept in a shared configuration module instead of being repeated across pages.
+
+### Activation and staking
+
+Before sending the activation payment, the home page checked the user's status, referral relationship, and USDT balance. It then requested a recipient address from the backend and submitted a token transfer.
+
+The staking page followed a similar flow: validate the entered amount and ATB balance, convert the value to token units, and call the ATB contract's `transfer` function. After a successful transaction, the page refreshed its reward data and displayed feedback.
+
+### Signature-based claims
+
+Reward claims did not rely on an unrestricted transfer endpoint. The frontend first requested a backend signature containing a withdrawal ID, amount, token address, deadline, and the signature's `r`, `s`, and `v` values. It then submitted those parameters to the claim contract.
+
+This reduced the frontend's ability to choose arbitrary claim amounts, but it also made the complete flow dependent on the backend signing service. Once that service stopped, the original claim process could no longer operate even if the interface remained accessible.
+
+### Team data and referrals
+
+The personal dashboard displayed the parent address, referral link, node level, team performance, and direct-referral data. Referral information was passed through URL parameters and combined with the connected address to create a shareable link.
+
+![ATB DApp team levels and requirements](/images/projects/atb-dapp/team-levels-desktop.png)
+
+*Desktop layout for node levels, direct referrals, and performance requirements.*
+
+## Responsive design and localization
+
+The desktop interface used multi-column dashboards for balances, rewards, and team metrics. On mobile, the same information became vertically stacked cards with a compact navigation menu.
+
+<img className="atb-mobile-shot" src="/images/projects/atb-dapp/home-mobile.png" alt="ATB DApp mobile home page" />
+
+*The mobile home page retained wallet access, the primary subscription panel, and product information.*
+
+<img className="atb-mobile-shot" src="/images/projects/atb-dapp/service-mobile.png" alt="ATB DApp mobile staking page" />
+
+*Mobile staking, reward statistics, and claim actions.*
+
+The repository contains several locale resources, while the product interface exposed Chinese and English. The selected language was stored locally so it persisted across page reloads.
+
+## Technology stack
+
+- Next.js 14, React 18, and TypeScript
+- wagmi, viem, and RainbowKit
+- Tailwind CSS, daisyUI, and Material UI
+- Axios
+- i18next and react-i18next
+- PM2
+
+## Project boundaries
+
+The ATB DApp frontend repository does not include:
+
+- The backend service or database
+- Backend signing keys or signature implementation
+- Smart-contract source code and deployment workflow
+- A maintained production environment
+
+## What I would improve today
+
+Looking back at the project, the main engineering improvements would be:
+
+- Replace broad `any` values with explicit API and contract types.
+- Use `bigint`, `formatUnits`, and `parseUnits` throughout token calculations instead of JavaScript `Number`.
+- Separate backend requests, contract reads, and transaction state into a clearer data layer.
+- Standardize disconnected, loading, success, and error states to prevent `NaN` output when data is unavailable.
+- Isolate testnet, mainnet, contract addresses, and API endpoints in validated environment configuration.
+- Add unit and end-to-end tests for referral links, input validation, and signed claims.
+- Standardize the package manager and improve environment-variable and repository release practices.
+
+That is also the value of archiving an older project: it records what was delivered while making the next stage of engineering growth concrete.
+
+## Conclusion
+
+ATB DApp covered several tightly connected Web3 frontend concerns: wallet connection, on-chain balances, token transfers, backend signatures, contract claims, team data, and responsive interfaces.
+
+Although the hosted service is no longer active, the repository remains a meaningful historical engineering case study. Preserving the source, screenshots, and technical retrospective communicates the project's scope more accurately than maintaining a non-functional demo.
+
+> The repository currently has no open-source license, so it is described as source-available rather than open source. The code is presented for review and project documentation; reuse rights depend on any license added to the repository in the future.
