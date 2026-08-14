@@ -1,0 +1,494 @@
+export const metadata = {
+  title: "CI/CD from Zero to One: A Beginner's Next.js Pipeline",
+  description: "Build a complete CI/CD pipeline with GitHub Actions, pnpm, and Vercel, including quality checks, production deployment, branch protection, secrets, and rollback.",
+  date: "2026-08-14",
+  slug: "cicd-pipeline-from-zero-to-one",
+  lang: "en",
+  tags: ["cicd", "github-actions", "nextjs", "pnpm", "vercel", "devops"],
+  draft: false,
+}
+
+When only one person works on a project, deployment often means changing code locally, opening the app once, and manually uploading it somewhere. That feels fast at first, but it becomes unreliable as the codebase and team grow.
+
+Someone eventually forgets a check, production behaves differently from a laptop, a release cannot be reproduced, or nobody knows which version to restore after an incident.
+
+CI/CD turns those repetitive and error-prone steps into an automated, traceable pipeline.
+
+This tutorial uses **Next.js + pnpm + GitHub Actions + Vercel**. Starting from a repository that contains only the application, we will build a pipeline that:
+
+- Runs linting, TypeScript checks, and a production build on every pull request
+- Prevents a failing change from being merged
+- Deploys automatically after code enters `main`
+- Keeps credentials out of source code and logs
+- Provides useful failure information and a rollback path
+
+> Vercel is the deployment target in this guide, but the CI job also works for Vue, React, and Node.js projects. A deployment to your own server normally requires changing only the final `deploy` job.
+
+---
+
+## 1. CI, CD, and pipelines
+
+### Continuous Integration
+
+Continuous Integration validates code before it enters the main branch. Typical checks include:
+
+- Installing dependencies
+- Running ESLint
+- Checking TypeScript types
+- Running automated tests
+- Creating a production build
+
+CI is more than a collection of automated commands. It gives the team one shared definition of whether a change is ready to merge.
+
+### Continuous Delivery and Continuous Deployment
+
+CD commonly has two meanings:
+
+- **Continuous Delivery** produces a releasable artifact but waits for manual approval
+- **Continuous Deployment** sends every validated change to production automatically
+
+This guide implements continuous deployment: a successful `main` build is deployed to Vercel. Adding a required reviewer to the GitHub production environment changes it into a delivery workflow with an approval gate.
+
+### The finished flow
+
+```text
+Feature branch → Pull Request → CI → Review → Merge to main
+                                               ↓
+                                    Validate → Build → Deploy
+                                               ↓
+                                           Smoke test
+```
+
+The essential rule is: **unchecked code cannot enter the main branch, and an invalid main branch cannot deploy.**
+
+---
+
+## 2. Prepare the project and accounts
+
+You need:
+
+1. A Next.js project that runs locally
+2. A GitHub repository containing the project
+3. A Vercel account and an existing Vercel Project
+4. Node.js, pnpm, Git, and the Vercel CLI on your computer
+
+Use the same Node.js and pnpm major versions locally and in CI. You can document them in `package.json`:
+
+```json
+{
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "packageManager": "pnpm@10.15.0"
+}
+```
+
+These versions are examples. Replace them with versions that your project has actually verified. The `packageManager` field helps developers and automation select a consistent package manager.
+
+Commit the files that control dependency resolution and compilation:
+
+```text
+package.json
+pnpm-lock.yaml
+next.config.ts
+tsconfig.json
+```
+
+The lockfile belongs in Git. It keeps CI dependencies aligned with local dependencies and allows `--frozen-lockfile` to detect accidental drift.
+
+---
+
+## 3. Create local quality gates first
+
+A pipeline cannot repair commands that already fail locally. Give each check a standard entry point in `package.json`:
+
+```json
+{
+  "scripts": {
+    "dev": "next dev",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "build": "next build",
+    "start": "next start"
+  }
+}
+```
+
+If the project already uses Vitest, Jest, or Playwright, add its real `test` or `test:e2e` command. Do not call a nonexistent test script merely to make the pipeline look complete.
+
+Run the exact gates locally before adding the workflow:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+All four commands must succeed. If your project currently relies on `pnpm exec tsc --noEmit`, the workflow can call it directly until the scripts are standardized.
+
+---
+
+## 4. Add the complete pipeline
+
+Create `.github/workflows/pipeline.yml` at the repository root:
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pipeline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Build application
+        run: pnpm build
+
+  deploy:
+    name: Deploy Production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Vercel CLI
+        run: pnpm install --global vercel@latest
+
+      - name: Pull Vercel configuration
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel output
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt output
+        id: deploy
+        shell: bash
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 3 "$DEPLOYMENT_URL" --output /dev/null
+```
+
+Major-version tags are easier to read while learning. A project with stricter supply-chain requirements should pin each action to the full commit SHA of an official release, then use Dependabot or Renovate to update those SHAs.
+
+---
+
+## 5. Understand each part
+
+### Triggers
+
+```yaml
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+```
+
+- A pull request targeting `main` starts CI
+- A push to `main` runs CI again and can continue to deployment
+- `workflow_dispatch` adds a manual Run workflow button
+
+The deployment job cannot run for a pull request because its condition requires a push to `main`. This saves resources and keeps production credentials away from code submitted by external forks.
+
+### Least privilege
+
+```yaml
+permissions:
+  contents: read
+```
+
+This workflow only needs to read repository content, so its `GITHUB_TOKEN` receives no write permission. Add narrowly scoped permissions to an individual job if it later needs to publish a release, comment on a PR, or push a container image.
+
+### Cancel stale runs
+
+```yaml
+concurrency:
+  group: pipeline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+When several commits arrive on one branch, the old run is canceled and only the newest commit is validated. If every production release must finish, separate CI and deployment into different concurrency policies.
+
+### Cache and reproducible installs
+
+The `cache: pnpm` setting in `actions/setup-node` caches the pnpm Store, not the complete `node_modules` directory. A cache hit speeds up downloads, but `pnpm install` must still run.
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+This command fails when `package.json` and `pnpm-lock.yaml` disagree. Regenerate and commit the lockfile locally instead of weakening CI by removing frozen mode.
+
+### Job dependencies
+
+```yaml
+needs: quality
+```
+
+The deployment job starts only after the quality job succeeds. This is the simplest useful deployment gate.
+
+### Why production builds twice
+
+The `pnpm build` command in `quality` proves that a normal production build succeeds. `vercel build` creates `.vercel/output` in the Vercel Build Output API format, and `vercel deploy --prebuilt` publishes that output.
+
+The duplication keeps a beginner pipeline explicit and isolated. A larger project can upload and reuse artifacts, but it must guarantee that the validated artifact is exactly the artifact being deployed.
+
+---
+
+## 6. Configure Vercel and GitHub Secrets
+
+### Link the Vercel Project locally
+
+Run these commands from the project directory:
+
+```bash
+vercel login
+vercel link
+```
+
+Vercel creates `.vercel/project.json`, which contains `orgId` and `projectId`. Keep `.vercel` in `.gitignore`; it is local project configuration and should not be committed directly.
+
+### Create a deployment token
+
+Create a token under Vercel Account Settings → Tokens. Give it a recognizable name and a reasonable expiration, such as `github-actions-production`.
+
+### Add GitHub Secrets
+
+Open the GitHub repository and navigate to:
+
+```text
+Settings → Secrets and variables → Actions → New repository secret
+```
+
+Add:
+
+| Name | Source | Sensitive? |
+| --- | --- | --- |
+| `VERCEL_TOKEN` | Vercel Tokens page | Yes |
+| `VERCEL_ORG_ID` | `orgId` in `.vercel/project.json` | Not normally a credential, but it can be managed as a Secret for simplicity |
+| `VERCEL_PROJECT_ID` | `projectId` in `.vercel/project.json` | Not normally a credential, but it can be managed as a Secret for simplicity |
+
+Never place the token in the workflow, `.env.example`, an issue, a screenshot, or build output. A missing GitHub Secret resolves to an empty string, so authentication and project-not-found errors should first prompt a check of the exact Secret names.
+
+### Store application variables in Vercel
+
+Database URLs and third-party API keys should normally live in Vercel Project Settings → Environment Variables, with separate values for Production, Preview, and Development.
+
+The workflow's `vercel pull --environment=production` retrieves the project configuration needed for the production build. Keep only pipeline authentication in GitHub Secrets instead of duplicating every application variable on both platforms.
+
+Variables prefixed with `NEXT_PUBLIC_` may be embedded in browser code during the build. They must never contain real secrets.
+
+---
+
+## 7. Make failed CI block merging
+
+A workflow alone does not prevent someone from ignoring a red check and merging anyway.
+
+In GitHub Settings → Rules → Rulesets (or Branches), create a rule for `main` that:
+
+- Requires changes to enter through a pull request
+- Requires status checks to pass
+- Selects `Quality Gate` as a required check
+- Requires the branch to be up to date before merging
+- Restricts force pushes and branch deletion when appropriate
+
+Require the `Quality Gate`, which always runs on pull requests. Do not require `Deploy Production`, because that job intentionally runs only after a push to `main`; requiring it on PRs would leave them waiting for a job that can never start.
+
+---
+
+## 8. Add production approval
+
+If merging should not immediately release to production, create a GitHub Environment named `production` and configure Required reviewers.
+
+The workflow already references it:
+
+```yaml
+environment:
+  name: production
+```
+
+The deployment job will wait for approval before it starts and before it can access Environment Secrets. Environments can also restrict which branches are allowed to deploy.
+
+Support for approval rules in private repositories varies by GitHub plan. A personal project can start with automatic deployment, while a team or high-risk service will usually benefit from approval.
+
+---
+
+## 9. Run and verify the pipeline
+
+Create a feature branch:
+
+```bash
+git switch -c chore/add-cicd
+git add .github/workflows/pipeline.yml package.json pnpm-lock.yaml
+git commit -m "chore: add CI/CD pipeline"
+git push -u origin chore/add-cicd
+```
+
+Open a pull request and watch the Actions page. A correct first run looks like this:
+
+1. `Quality Gate` starts
+2. Dependency installation, linting, type checking, and the build succeed
+3. `Deploy Production` is skipped on the pull request
+4. Merging to `main` starts a new `Quality Gate`
+5. `Deploy Production` runs and records its URL in the GitHub Environment
+6. The smoke test requests the deployed home page successfully
+
+Deliberately introduce one harmless error, such as an obvious type mismatch, to prove that the PR turns red and cannot merge. Then revert the error.
+
+If the Vercel Project already uses Git Integration and this custom workflow is added, one commit may produce two deployments. Choose one release entry point. Disable the corresponding Vercel Git auto-deployment when using the custom CD job from this guide.
+
+---
+
+## 10. Common failures
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| `pnpm: command not found` | pnpm setup is missing or ordered incorrectly | Run `pnpm/action-setup` before pnpm commands |
+| `ERR_PNPM_OUTDATED_LOCKFILE` | `package.json` and the lockfile disagree | Run `pnpm install` locally and commit `pnpm-lock.yaml` |
+| The cache step fails | setup-node looks for the pnpm Store before pnpm exists | Keep the order: pnpm setup → setup-node → install |
+| Local build works but CI fails | Node versions, path casing, or environment variables differ | Pin Node, check Linux filename casing, and verify build variables |
+| Vercel reports an authentication error | Token is invalid, expired, or misspelled in GitHub | Recreate it and verify `VERCEL_TOKEN` |
+| Vercel cannot find the Project | Organization or Project ID is wrong | Run `vercel link` again and inspect `.vercel/project.json` |
+| PR waits forever for deployment | A main-only deployment job is marked as required | Require only `Quality Gate` on pull requests |
+| A fork PR cannot read Secrets | GitHub does not pass repository Secrets to fork PRs | Run CI only; never deploy untrusted PR code with production credentials |
+| Smoke test returns 401 or 403 | Deployment protection is enabled | Use an authenticated check or a public health endpoint |
+
+Open the failed Job and find the first failing Step. Later failures are often consequences of the first one, so debugging from the final log line usually wastes time.
+
+---
+
+## 11. Roll back before investigating
+
+A green pipeline cannot guarantee that production will never fail. Real data, external APIs, and production configuration can expose problems that tests missed.
+
+Vercel can quickly point production traffic back to the previous deployment:
+
+```bash
+vercel rollback
+vercel rollback status
+```
+
+To target a particular eligible deployment, pass its URL:
+
+```bash
+vercel rollback https://your-previous-deployment.vercel.app
+```
+
+After recovery:
+
+1. Verify that service has returned
+2. Preserve logs and the failing Commit SHA
+3. Fix the root cause and send the change through the pull request pipeline again
+
+Vercel plans differ in how far back they can roll. A rollback can also restore older behavior for environment configuration and Cron jobs, so it is an incident recovery tool rather than a replacement for configuration management.
+
+---
+
+## 12. Grow the pipeline gradually
+
+Once the first pipeline is stable, add capabilities according to risk and value:
+
+- Unit and component tests
+- Playwright end-to-end tests
+- Pull request Preview deployments with an automatic URL comment
+- Artifact reuse to avoid duplicate builds
+- Dependency vulnerability and Secret scanning
+- Container building, signing, and registry publishing
+- A staging environment and production approval
+- Safe database migrations with backups and locking
+- Post-deployment health checks, logs, metrics, and alerts
+- OIDC instead of long-lived cloud tokens when the provider supports it
+
+Do not add every tool at once. For a small project, a dependable pipeline with linting, type checks, a build, production deployment, and rollback is much more useful than a fragile pipeline with many unfamiliar steps that people routinely bypass.
+
+---
+
+## Summary
+
+Building CI/CD from zero to one has five layers:
+
+1. **Repeatable locally**: align Node, pnpm, scripts, and the lockfile
+2. **Validated on every change**: run linting, type checks, and builds on PRs
+3. **Protected at merge time**: keep failing code out of `main`
+4. **Traceable in production**: deploy only a successful main build and record its URL
+5. **Recoverable after failure**: retain logs and deployment history, and practice rollback
+
+CI/CD is not a magical YAML file. It converts a release process that once depended on memory into engineering rules that a machine executes consistently. Start with a small reliable path, then add tests, security, and release controls as the project's risk grows.
+
+## Further reading
+
+- [GitHub Actions: Building and testing Node.js](https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs)
+- [GitHub Actions: Dependency caching](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)
+- [GitHub Actions: Deployment environments](https://docs.github.com/en/actions/concepts/workflows-and-actions/deployment-environments)
+- [Vercel: Deploying GitHub Projects](https://vercel.com/docs/git/vercel-for-github)
+- [Vercel CLI: Build and prebuilt deploy](https://vercel.com/docs/cli/build)
+- [Vercel: Rolling back production](https://vercel.com/docs/deployments/rollback-production-deployment)

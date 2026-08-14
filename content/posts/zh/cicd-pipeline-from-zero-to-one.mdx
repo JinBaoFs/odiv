@@ -1,0 +1,494 @@
+export const metadata = {
+  title: "CI/CD 工程流水线从 0 到 1：Next.js 小白实战教程",
+  description: "使用 GitHub Actions、pnpm 和 Vercel，从零搭建一条包含代码检查、类型检查、构建、生产部署、分支保护与回滚的 CI/CD 工程流水线。",
+  date: "2025-07-05",
+  slug: "cicd-pipeline-from-zero-to-one",
+  lang: "zh",
+  tags: ["cicd", "github-actions", "nextjs", "pnpm", "vercel", "devops"],
+  draft: false,
+}
+
+当项目只有一个人开发时，我们很容易形成这样的发布习惯：本地改完代码，运行一下项目，感觉没问题，然后手动上传服务器。
+
+这种方式在项目早期看起来很快，但随着功能和协作者增加，问题也会出现：有人忘记执行检查、生产环境与本地版本不同、发布过程无法复现，或者线上出错后不知道应该退回哪个版本。
+
+CI/CD 的目的，就是把这些重复且容易出错的步骤变成一条自动执行、结果可追踪的流水线。
+
+本文以 **Next.js + pnpm + GitHub Actions + Vercel** 为例，从一个只有源码的仓库开始，最终实现：
+
+- 提交 Pull Request 后自动执行代码检查、TypeScript 检查和生产构建
+- 检查失败时禁止合并
+- 代码合并到 `main` 后自动部署生产环境
+- 密钥不进入源码和日志
+- 部署失败时可以快速定位，线上异常时可以回滚
+
+> 本文使用 Vercel 作为部署目标，但 CI 部分同样适用于 Vue、React、Node.js 等项目。换成自己的云服务器时，通常只需要替换最后的 `deploy` Job。
+
+---
+
+## 一、先理解 CI、CD 和流水线
+
+### CI：持续集成
+
+CI（Continuous Integration）是在代码进入主分支前自动验证它。常见检查包括：
+
+- 安装依赖
+- ESLint 代码检查
+- TypeScript 类型检查
+- 单元测试
+- 生产构建
+
+CI 的核心不是“自动运行几个命令”，而是让团队对“这份代码是否具备合并条件”拥有统一标准。
+
+### CD：持续交付或持续部署
+
+CD 常见的两种解释是：
+
+- **持续交付**：流水线生成可发布产物，但上线前仍需人工批准
+- **持续部署**：通过检查的代码自动进入生产环境
+
+本文采用持续部署：`main` 分支通过 CI 后自动发布到 Vercel。你也可以通过 GitHub Environment 增加人工审批，把它改成持续交付。
+
+### 最终流程
+
+```text
+功能分支 → Pull Request → CI 检查 → 代码评审 → 合并 main
+                                              ↓
+                                    再次检查 → 构建 → 部署
+                                              ↓
+                                         冒烟测试
+```
+
+这里最重要的规则是：**未经检查的代码不能进入主分支，未通过检查的主分支不能部署。**
+
+---
+
+## 二、准备项目和账号
+
+开始前需要：
+
+1. 一个可以在本地正常运行的 Next.js 项目
+2. 一个 GitHub 仓库，并将项目推送到仓库
+3. 一个 Vercel 账号和已经创建的 Vercel Project
+4. 本地已安装 Node.js、pnpm、Git 和 Vercel CLI
+
+建议本地和 CI 使用相同的 Node.js 与 pnpm 大版本。可以在 `package.json` 中声明：
+
+```json
+{
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "packageManager": "pnpm@10.15.0"
+}
+```
+
+版本号只是示例，应替换为项目实际验证过的版本。`packageManager` 能让开发者和自动化工具更容易使用一致的包管理器。
+
+确认以下文件已经提交：
+
+```text
+package.json
+pnpm-lock.yaml
+next.config.ts
+tsconfig.json
+```
+
+锁文件必须进入 Git。它保证 CI 安装的依赖版本与本地尽可能一致，也是 `--frozen-lockfile` 能正常工作的前提。
+
+---
+
+## 三、先建立本地质量门禁
+
+流水线不会修复本地本来就无法运行的命令。先在 `package.json` 中统一检查入口：
+
+```json
+{
+  "scripts": {
+    "dev": "next dev",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "build": "next build",
+    "start": "next start"
+  }
+}
+```
+
+如果项目已经配置 Vitest、Jest 或 Playwright，再增加对应的 `test` 或 `test:e2e` 命令。不要为了让流水线“看起来完整”而调用一个实际不存在的测试脚本。
+
+提交工作流前，在本地执行：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+四条命令全部成功，才说明项目具备进入 CI 的基础。若你的项目暂时只能使用 `pnpm exec tsc --noEmit`，也可以先在工作流中直接执行它，再逐步整理脚本。
+
+---
+
+## 四、创建第一条完整流水线
+
+在项目根目录创建 `.github/workflows/pipeline.yml`：
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pipeline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Build application
+        run: pnpm build
+
+  deploy:
+    name: Deploy Production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Vercel CLI
+        run: pnpm install --global vercel@latest
+
+      - name: Pull Vercel configuration
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel output
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt output
+        id: deploy
+        shell: bash
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 3 "$DEPLOYMENT_URL" --output /dev/null
+```
+
+首次学习时可以使用上面的主版本标签。对供应链安全要求更高的项目，应把 `uses` 后面的标签固定为官方发布对应的完整 Commit SHA，并通过 Dependabot 或 Renovate 定期更新。
+
+---
+
+## 五、逐段看懂工作流
+
+### 1. 触发条件
+
+```yaml
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+```
+
+- 向 `main` 提交 Pull Request 时运行 CI
+- 代码进入 `main` 后再次运行 CI，并继续部署
+- `workflow_dispatch` 允许在 GitHub Actions 页面手动运行
+
+PR 阶段不会部署，因为 `deploy` Job 只允许 `push + main`。这样既能节省资源，也不会让外部 Fork 的 PR 接触生产密钥。
+
+### 2. 最小权限
+
+```yaml
+permissions:
+  contents: read
+```
+
+工作流只需要读取代码，因此不给 `GITHUB_TOKEN` 写权限。以后如果需要发布 Release、写 PR 评论或推送镜像，再针对具体 Job 增加所需权限。
+
+### 3. 取消过期任务
+
+```yaml
+concurrency:
+  group: pipeline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+同一分支连续推送时，旧任务会被取消，只验证最新提交。生产项目若每次发布都必须完整保留，可以把 CI 和生产部署拆成不同的并发策略。
+
+### 4. 依赖缓存与可重复安装
+
+`actions/setup-node` 的 `cache: pnpm` 缓存的是 pnpm Store，而不是整个 `node_modules`。缓存命中可以加快安装，但 `pnpm install` 仍然必须执行。
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+如果 `package.json` 与 `pnpm-lock.yaml` 不一致，这条命令会直接失败。正确做法是在本地重新安装并提交锁文件，而不是在 CI 中移除严格模式。
+
+### 5. Job 依赖
+
+```yaml
+needs: quality
+```
+
+它表示只有 `quality` 成功后才运行 `deploy`。这就是最基础的发布门禁。
+
+### 6. 为什么生产环境会构建两次
+
+`quality` 中的 `pnpm build` 用于证明常规生产构建可以通过；`vercel build` 则生成 Vercel Build Output API 所需的 `.vercel/output`，随后由 `vercel deploy --prebuilt` 发布。
+
+这对入门流水线更直观、隔离也更清楚。项目变大后，可以上传和复用构建产物以减少重复工作，但必须确保“被检查的产物”和“被部署的产物”完全一致。
+
+---
+
+## 六、配置 Vercel 和 GitHub Secrets
+
+### 1. 本地关联 Vercel Project
+
+在项目目录执行：
+
+```bash
+vercel login
+vercel link
+```
+
+关联成功后会生成 `.vercel/project.json`，其中包含 `orgId` 和 `projectId`。`.vercel` 目录包含本地项目配置，应保留在 `.gitignore` 中，不要直接提交。
+
+### 2. 创建部署 Token
+
+在 Vercel 的 Account Settings → Tokens 中创建 Token。为它设置清晰名称和合理有效期，例如 `github-actions-production`。
+
+### 3. 添加 GitHub Secrets
+
+打开 GitHub 仓库：
+
+```text
+Settings → Secrets and variables → Actions → New repository secret
+```
+
+添加：
+
+| 名称 | 值来自哪里 | 是否敏感 |
+| --- | --- | --- |
+| `VERCEL_TOKEN` | Vercel Tokens 页面 | 是 |
+| `VERCEL_ORG_ID` | `.vercel/project.json` 的 `orgId` | 通常不是凭证，但可统一按 Secret 管理 |
+| `VERCEL_PROJECT_ID` | `.vercel/project.json` 的 `projectId` | 通常不是凭证，但可统一按 Secret 管理 |
+
+不要把 Token 写进 YAML、`.env.example`、Issue、截图或构建日志。GitHub Secret 为空时，表达式会得到空字符串，所以出现“未认证”或“找不到项目”时，应先检查 Secret 名称是否完全一致。
+
+### 4. 业务环境变量放在哪里
+
+数据库地址、第三方 API Key 等应用变量，优先放到 Vercel Project Settings → Environment Variables，并分别配置 Production、Preview 和 Development。
+
+工作流中的 `vercel pull --environment=production` 会拉取生产构建所需的项目配置。只有流水线自身需要的认证信息才放 GitHub Secrets，避免在两个平台重复维护所有业务变量。
+
+以 `NEXT_PUBLIC_` 开头的变量可能在构建时进入浏览器产物，不能存放真正的秘密。
+
+---
+
+## 七、让失败的 CI 真正阻止合并
+
+只有工作流还不够。没有分支保护时，开发者仍可以忽略红色检查并直接合并。
+
+在 GitHub 仓库的 Settings → Rules → Rulesets（或 Branches）中为 `main` 配置：
+
+- 必须通过 Pull Request 才能合并
+- 必须通过状态检查
+- 将 `Quality Gate` 选为必需检查
+- 合并前要求分支与目标分支保持最新
+- 根据团队需要限制强制推送和删除分支
+
+注意：应把 PR 一定会执行的 `Quality Gate` 设为必需检查，不要把只在 `main` 推送后运行的 `Deploy Production` 设为 PR 必需检查，否则 Pull Request 会一直等待一个不会启动的 Job。
+
+---
+
+## 八、给生产部署增加人工审批
+
+如果不希望合并后立即上线，可以在 GitHub 仓库中创建名为 `production` 的 Environment，并设置 Required reviewers。
+
+工作流已经声明：
+
+```yaml
+environment:
+  name: production
+```
+
+因此部署 Job 会在读取 Environment Secrets 和开始运行前等待审批。Environment 还可以限制哪些分支允许部署生产环境。
+
+不同 GitHub 套餐对私有仓库的审批规则支持不同，配置前应查看当前套餐说明。个人项目可以先自动部署，团队和高风险项目更适合增加审批。
+
+---
+
+## 九、第一次运行与验收
+
+新建功能分支：
+
+```bash
+git switch -c chore/add-cicd
+git add .github/workflows/pipeline.yml package.json pnpm-lock.yaml
+git commit -m "chore: add CI/CD pipeline"
+git push -u origin chore/add-cicd
+```
+
+然后创建 Pull Request，观察 Actions 页面。正确结果应该是：
+
+1. `Quality Gate` 开始运行
+2. 依赖安装、Lint、类型检查、构建依次成功
+3. `Deploy Production` 在 PR 中显示跳过
+4. 合并到 `main` 后，新一轮 `Quality Gate` 成功
+5. `Deploy Production` 运行并在 GitHub Environment 中记录部署 URL
+6. 冒烟测试访问部署首页并返回成功状态码
+
+建议主动制造一次无害错误，例如声明一个未使用变量或写入明显错误的类型，确认 PR 确实会变红且不能合并，然后撤销错误。
+
+如果 Vercel Project 已经启用 Git Integration 的自动部署，又增加了这条自定义工作流，同一次提交可能产生两次部署。请选择一种发布入口；使用本文的自定义 CD 时，应关闭对应的 Vercel Git 自动部署。
+
+---
+
+## 十、常见失败与排查方法
+
+| 现象 | 常见原因 | 处理方式 |
+| --- | --- | --- |
+| `pnpm: command not found` | 没有执行 pnpm setup，或步骤顺序错误 | 先运行 `pnpm/action-setup`，再执行 pnpm 命令 |
+| `ERR_PNPM_OUTDATED_LOCKFILE` | `package.json` 和锁文件不一致 | 本地运行 `pnpm install`，提交新的 `pnpm-lock.yaml` |
+| 缓存步骤报错 | setup-node 在 pnpm 可用前尝试读取 Store | 保持“安装 pnpm → setup-node → install”的顺序 |
+| 本地成功、CI 构建失败 | Node 版本、大小写路径或环境变量不同 | 固定 Node 版本，检查 Linux 文件名大小写，核对构建变量 |
+| Vercel 提示未认证 | Token 无效、过期或 Secret 名拼错 | 重新创建 Token，并检查 `VERCEL_TOKEN` |
+| Vercel 找不到 Project | Org ID 或 Project ID 错误 | 重新执行 `vercel link`，核对 `.vercel/project.json` |
+| PR 一直等待部署检查 | 将只在 main 运行的部署 Job 设成必需检查 | 必需检查只选择 `Quality Gate` |
+| Fork PR 无法读取 Secret | GitHub 默认不向 Fork PR 提供仓库 Secret | 让 PR 只运行 CI，不在不可信代码上执行生产部署 |
+| 冒烟测试返回 401/403 | 部署启用了访问保护 | 使用带认证的检查方式，或针对公开健康检查端点验证 |
+
+排查时先打开失败 Job，再展开第一个失败 Step。后面的失败通常只是前一步的连锁结果，不要从最后一行日志开始猜。
+
+---
+
+## 十一、回滚：上线出错时先恢复服务
+
+CI 全绿不代表线上一定不会出错。外部 API、真实数据和生产配置都可能带来测试阶段没有覆盖的问题。
+
+Vercel 可以将生产流量快速切回上一份可用部署：
+
+```bash
+vercel rollback
+vercel rollback status
+```
+
+需要回到指定部署时，可以使用部署 URL：
+
+```bash
+vercel rollback https://your-previous-deployment.vercel.app
+```
+
+回滚后应继续完成三件事：
+
+1. 验证服务已经恢复
+2. 保存失败部署的日志和 Commit SHA
+3. 修复根因并重新走 PR 与流水线，不要只停留在回滚状态
+
+Vercel 不同套餐允许选择的历史部署范围不同。回滚也可能恢复旧版本中的环境配置、Cron 等行为，因此它是应急恢复手段，不是日常配置管理方式。
+
+---
+
+## 十二、从“能用”继续升级
+
+第一条流水线稳定后，可以按风险和收益逐步增加：
+
+- 单元测试和组件测试
+- Playwright 端到端测试
+- PR Preview 部署和自动评论 Preview URL
+- 构建产物复用，避免重复构建
+- 依赖漏洞扫描和 Secret 扫描
+- Docker 镜像构建、签名与镜像仓库推送
+- Staging 环境和生产审批
+- 数据库迁移的备份、锁与向后兼容检查
+- 部署后的健康检查、日志、指标和告警
+- 使用 OIDC 替代云平台长期 Token（平台支持时）
+
+不要一次加入所有工具。对小项目而言，一条稳定的“Lint + 类型检查 + Build + 生产部署 + 回滚”流水线，远比一条包含十几个不理解的步骤、却经常被跳过的流水线更有价值。
+
+---
+
+## 总结
+
+从 0 到 1 搭建 CI/CD，可以记住五个层次：
+
+1. **本地可重复**：统一 Node、pnpm、脚本和锁文件
+2. **提交可验证**：PR 自动执行 Lint、类型检查和构建
+3. **合并有门禁**：分支保护阻止失败代码进入 `main`
+4. **发布可追踪**：主分支检查成功后自动部署并记录 URL
+5. **故障可恢复**：有日志、有部署历史，也有明确回滚流程
+
+CI/CD 不是一份神奇的 YAML，而是把团队原本依赖记忆完成的发布流程，转换成机器可以稳定执行的工程规则。先让最小流程可靠运行，再根据项目风险逐步增加测试、安全和发布策略，这才是一条可长期维护的流水线。
+
+## 延伸阅读
+
+- [GitHub Actions：构建与测试 Node.js](https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs)
+- [GitHub Actions：依赖缓存](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)
+- [GitHub Actions：部署环境](https://docs.github.com/en/actions/concepts/workflows-and-actions/deployment-environments)
+- [Vercel：使用 GitHub Actions 部署](https://vercel.com/docs/git/vercel-for-github)
+- [Vercel CLI：Build 与 Prebuilt Deploy](https://vercel.com/docs/cli/build)
+- [Vercel：生产环境回滚](https://vercel.com/docs/deployments/rollback-production-deployment)
