@@ -1,0 +1,132 @@
+export const metadata = {
+  title: "ZZ-Admin: An Engineering Retrospective on a Meteorological Operations Platform",
+  description:
+    "A retrospective on ZZ-Admin's monitoring dashboard, network topology, duty management, dynamic menus, and role permissions. The original service is no longer active and is preserved as a frontend case study.",
+  date: "2021-03-24",
+  slug: "zz-admin-case-study",
+  lang: "en",
+  tags: ["vue2", "admin", "echarts", "operations", "weather"],
+  cover: "/images/projects/zz-admin/monitoring-dashboard.png",
+  draft: false,
+}
+
+> **Project status: archived.** The original ZZ-Admin service and internal APIs are no longer active, so this article does not provide an interactive demo. It documents only the frontend behavior and engineering decisions that can be verified from the preserved repository.
+
+## Project overview
+
+ZZ-Admin was a monitoring, operations, and duty-management frontend for meteorological services. It brought infrastructure monitoring, weather-data arrival status, anomaly alerts, external system entry points, and daily duty workflows into one administration platform.
+
+The application was built with Vue 2 and combined a full-screen visualization dashboard with conventional administration pages. Only the frontend repository has been preserved; complete operation depends on the original meteorological backend, monitoring APIs, and internal systems.
+
+[View the ZZ-Admin frontend source](https://github.com/JinBaoFs/zhangzhou-weather-admin)
+
+## Meteorological monitoring dashboard
+
+The dashboard acted as the real-time operational entry point and organized several data sources on one full-screen view:
+
+- Network topology and node connectivity
+- Link-traffic trends
+- Total, online, and offline host counts
+- Server-room and UPS temperature and humidity
+- Data-arrival status for national, regional, radar, and other stations
+- Shortcuts to external monitoring systems
+
+![ZZ-Admin meteorological operations dashboard](/images/projects/zz-admin/monitoring-dashboard.png)
+
+*The monitoring dashboard with a data-anomaly alert dialog. This screenshot is from a historical version of the project.*
+
+ECharts rendered trend charts, while vis displayed network relationships. Periodic requests refreshed monitoring indicators, and browser fullscreen support allowed the page to remain visible on an operations-room display.
+
+## Anomaly alert design
+
+When incoming data became abnormal, the interface displayed an alert dialog and attempted to play an audible notification. Operators could acknowledge the alert or postpone the next reminder.
+
+This flow needed to account for API state, browser autoplay restrictions, duplicate dialogs, postponed reminder times, and feedback while in fullscreen mode. The page therefore combined alert details, audio playback, and reminder scheduling into one interaction.
+
+## Duty-management workflow
+
+The duty module supported daily handovers and operational records through:
+
+1. Duty-log search and filtering.
+2. Check-in, check-out, and shift records.
+3. Current and unresolved issue tracking.
+4. Duty calendars and staff schedules.
+5. Duty summaries and exports.
+6. Correction requests, rotation settings, and schedule configuration.
+
+![ZZ-Admin duty log](/images/projects/zz-admin/duty-log.png)
+
+*Duty-log filters, check-in and check-out status, and issue records.*
+
+The pages primarily used Element UI tables, forms, date pickers, pagination, and notifications. Filters and pagination were combined into backend requests, and successful actions reloaded the current list to complete the administration workflow.
+
+## Dynamic menus and external systems
+
+Meteorological operations often require several independent systems. ZZ-Admin loaded menu definitions from the backend, organized them in one sidebar, and opened target systems in either a new window or an `iframe`.
+
+The menu-management page supported search, creation, editing, deletion, and pinning, allowing business entry points to change without rebuilding the frontend.
+
+![ZZ-Admin dynamic menu configuration](/images/projects/zz-admin/menu-config.png)
+
+*Dynamic menu entries and their create, pin, delete, and edit actions. URLs shown belong to the historical environment.*
+
+Embedded pages still depended on the target site's CSP, `X-Frame-Options`, and cross-origin policies, so deployment required coordination with each external system.
+
+## Role permissions
+
+The platform configured actions by role, including viewing all or personal logs, exporting data, creating schedules, editing records, deleting entries, and managing menus.
+
+![ZZ-Admin role-permission configuration](/images/projects/zz-admin/role-permissions.png)
+
+*Role-based permissions for duty records, schedules, and menu operations.*
+
+The frontend used permission data to decide which actions to display, reducing irrelevant controls for regular users. Actual data access still required backend validation and could not rely on hidden frontend buttons alone.
+
+## Frontend architecture
+
+- Vue 2.6, Vue Router 3, and Vuex 3
+- Element UI 2.15 and Sass
+- ECharts 5 and vis
+- Axios
+- mschedule
+- screenfull
+- Vue CLI 5, Babel, and ESLint
+
+The project used hash routing and relative asset paths, allowing deployment at either a domain root or a subdirectory. Route-level lazy loading separated the dashboard, menu management, and duty modules into different bundles.
+
+API requests were organized under `src/api` and `src/utils`, covering users, menus, duties, permissions, network traffic, and weather-data arrival. Vuex stored user and permission state, while shared components handled repeated navigation, date, and empty-state interfaces.
+
+## Project boundaries
+
+The preserved frontend repository does not include:
+
+- The meteorological backend or database
+- Internal monitoring services
+- External business systems
+- A complete authentication flow
+- An automated test environment
+
+Some dashboard sections include fallback or demonstration data, while user details and several duty parameters retain historical integration values. Outside the original network environment, the application can demonstrate its interface structure but cannot restore the complete business data.
+
+## What I would improve today
+
+If rebuilding the platform today, I would focus on:
+
+- Migrating state and business logic to Vue 3, TypeScript, and the Composition API.
+- Defining explicit types for API responses, table records, and permissions.
+- Extracting dashboard charts, polling, and alert state into reusable components and composables.
+- Adding request cancellation, retry behavior, loading skeletons, and consistent error feedback.
+- Moving internal URLs, API prefixes, and external system links into validated configuration.
+- Adding global navigation guards and coordinating authorization checks across frontend and backend.
+- Covering duty workflows, menu configuration, and permission combinations with unit and end-to-end tests.
+- Importing Element UI features on demand and further splitting large images, GIFs, and entry bundles.
+
+Archiving an older project is valuable not only for preserving its screens, but also for reviewing data visualization, administration workflows, and engineering boundaries in a real business context.
+
+## Conclusion
+
+ZZ-Admin covered two distinct frontend scenarios: a meteorological monitoring dashboard and an operations administration system. It combined network topology, charts, anomaly alerts, dynamic menus, duty workflows, and role permissions in one Vue 2 application.
+
+Although the original services are no longer active, the preserved source, historical screenshots, and technical retrospective still communicate the project's scope and the experience of building a complex administration frontend.
+
+> The repository currently has no open-source license, so it is described as source-available rather than open source. Reuse and distribution rights depend on any license added to the repository in the future.

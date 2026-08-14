@@ -7,7 +7,7 @@ export type ProjectAction = {
 };
 
 export type ProjectItem = {
-  id: 'chaincatcher' | 'rootdata' | 'fomo-tool' | 'image-compressor' | 'atb-dapp';
+  id: 'chaincatcher' | 'rootdata' | 'fomo-tool' | 'image-compressor' | 'atb-dapp' | 'zz-admin';
   name: string;
   followerCount: number;
   date: string;
@@ -65,6 +65,16 @@ export const projects: ProjectItem[] = [
     actions: [
       {label: 'source', href: 'https://github.com/JinBaoFs/ATB-dapp', openInNewTab: true},
       {label: 'doc', href: '/blog/atb-dapp-case-study', openInNewTab: true},
+    ],
+  },
+  {
+    id: 'zz-admin',
+    name: 'ZZ-Admin',
+    followerCount: 424,
+    date: '2021',
+    actions: [
+      {label: 'source', href: 'https://github.com/JinBaoFs/zhangzhou-weather-admin', openInNewTab: true},
+      {label: 'doc', href: '/blog/zz-admin-case-study', openInNewTab: true},
     ],
   },
 ];
