@@ -80,6 +80,7 @@
       "rootdata": {"description": "A Web3 asset data platform serving more than two million users."},
       "fomo-tool": {"description": "Token issuance simulator for price trends and ROI prediction."},
       "image-compressor": {"description": "A client-side batch image compressor with progress, preview, and download support."},
+      "dialect-world-dapp": {"description": "An archived BSC DApp frontend featuring wallet authentication, NFT minting and upgrades, DLW/USDT swaps, rewards, and team dashboards."},
       "atb-dapp": {"description": "An archived BSC DApp frontend featuring wallet connection, ATB staking, signature-based claims, and team dashboards."},
       "zz-admin": {"description": "An archived meteorological operations admin featuring monitoring dashboards, network topology, duty workflows, dynamic menus, and role permissions."}
     }

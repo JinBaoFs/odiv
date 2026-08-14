@@ -1,0 +1,105 @@
+export const metadata = {
+  title: "DIALECT World DApp: An Engineering Retrospective on a BSC NFT and Token Frontend",
+  description:
+    "A retrospective on DIALECT World DApp's wallet authentication, NFT minting and upgrades, DLW/USDT swaps, rewards dashboard, and multilingual mobile interface. The service is no longer active and is preserved as a frontend case study.",
+  date: "2023-12-11",
+  updatedAt: "2026-08-14",
+  slug: "dialect-world-dapp-case-study",
+  lang: "en",
+  tags: ["web3", "dapp", "next.js", "wagmi", "bsc", "nft"],
+  draft: false,
+}
+
+> **Project status: archived.** The hosted DIALECT World DApp service is no longer active, so this article does not provide an interactive demo. Do not transfer assets to historical addresses or contracts, and do not use a real wallet to test approvals, minting, swaps, or reward claims. This is an engineering record, not investment advice.
+
+## Project overview
+
+DIALECT World DApp was a multilingual, mobile-first Web3 frontend. Its product concept centered on dialect collection and community collaboration, while the preserved code mainly implemented a DLW token and NFT utility system. It included wallet connection, an account dashboard, NFT minting and upgrades, DLW/USDT swaps, reward withdrawals, and team data.
+
+The application targeted BNB Smart Chain: production selected BSC mainnet, while other environments selected BSC testnet. Only the frontend repository has been preserved. Complete operation still depends on a separate backend, deployed contracts, and environment configuration, so the code is best understood as a historical engineering case study rather than a usable product.
+
+[View the DIALECT World DApp frontend source](https://github.com/JinBaoFs/dog.git)
+
+## Core user flow
+
+The frontend organized wallet, account, and on-chain actions into a connected journey:
+
+1. Connect a browser wallet through RainbowKit and select BSC mainnet or testnet.
+2. Sign a login message, then exchange it with the backend for a session through NextAuth.
+3. Load on-chain balances together with backend-managed user, referral, reward, and team data.
+4. Display NFT tiers and pricing, then handle approvals, minting, upgrades, and renewals.
+5. Validate DLW/USDT balances and quotas before approving tokens and submitting buy or sell transactions.
+6. Report pending, successful, or failed transactions through global feedback components and persist local transaction records.
+
+This structure divided responsibility across three layers: wallets and contracts handled assets, the backend maintained account and business data, and the frontend connected authentication, queries, approvals, and transaction feedback into a complete experience.
+
+## Frontend implementation
+
+### Wallet connection and authenticated sessions
+
+The project used wagmi, viem, and RainbowKit to support injected wallets, MetaMask, Rainbow, Trust Wallet, and Argent. Network selection was centralized in the wagmi configuration and switched between BSC mainnet and testnet through an environment variable. The home page cleared stale wagmi state when it found an unsupported cached network.
+
+After connecting, the login dialog asked the wallet to sign a fixed message. The signature was sent to the backend, and a JWT session was established through the NextAuth Credentials Provider. The business token and user profile were also stored in Redux and persisted in local storage for Axios headers and later requests.
+
+### User, reward, and team dashboards
+
+The home page combined contract reads with backend requests. Contracts supplied balances such as DLW and USDT, while the backend supplied profiles, referrals, LP computing power, reward records, and team data. Reward withdrawals also required a backend endpoint and could not be completed from the preserved frontend alone.
+
+SWR and SWR Mutation handled queries and submissions, with shared feedback components reporting business results. This supported localized refreshes while the product was active, but it also means the original dashboard state cannot be reconstructed after the backend shutdown.
+
+### NFT minting, upgrades, and renewals
+
+The Mint page presented several NFT tiers with their associated quotas and prices. Before an action, it checked the wallet, user status, token balance, and allowance, then selected a mint, upgrade, or renewal path based on the current card state. Global transaction state tracked the result and refreshed related data afterward.
+
+The NFTs were tied to purchase quotas, LP computing power, and reward calculations rather than serving as visual collectibles alone. Those rules crossed backend data and contract state: the frontend documents the interactions, but it cannot independently prove or restore the complete business logic.
+
+### DLW and USDT swaps
+
+The Swap page supported buying and selling between DLW and USDT. It read balances, calculated expected results, validated input precision and allowance, and then submitted transactions to the buy/sell contract. The repository also retained a candlestick chart and WebSocket integration, although the live market component was disabled in the main flow.
+
+### State, interface, and localization
+
+The shared `Provider` combined Chakra UI, wagmi, TanStack Query, Redux, RainbowKit, SWR, and NextAuth, while transaction and Multicall updaters synchronized global state. The `application`, `transactions`, and `userInfo` slices were persisted locally.
+
+The interface was designed primarily for mobile, with a narrow content area retained on larger screens. Runtime localization covered Traditional Chinese, English, Japanese, and Korean through locale-aware App Router routes.
+
+## Technology stack
+
+- Next.js 13, React 18, and TypeScript
+- Chakra UI, Emotion, Tailwind CSS, and Framer Motion
+- wagmi, viem, RainbowKit, ethers, and SIWE
+- Redux Toolkit, TanStack Query, and SWR
+- NextAuth.js
+- next-intl and lobe-i18n
+- ECharts, KLineCharts, and Recharts
+
+## Project boundaries
+
+The preserved frontend repository does not include or replace:
+
+- The discontinued backend API, database, or operational data
+- Smart-contract source, deployment records, or administrator permissions
+- A maintained production environment or live market-data service
+- Independent verification of historical assets, rewards, or team data
+
+The `/rechage` route was a contract-management tool restricted to a designated wallet, while `/mem` was an experimental wallet-generation and address-validation page. Both were internal development utilities and should not be reopened as normal user-facing features.
+
+## What I would improve today
+
+The main engineering improvements would be:
+
+- Replace broad `any` values and type assertions with explicit API, contract-read, and transaction types.
+- Define a clear boundary between viem and ethers for amount handling to reduce duplicate conversions and precision risks.
+- Separate backend requests, contract reads, transaction submissions, and view state into a clearer data layer.
+- Validate networks, contract addresses, and public environment variables during startup to prevent mismatched deployments.
+- Standardize on the pnpm lockfile and remove the duplicate npm lockfile to avoid dependency-tree drift.
+- Add automated coverage for signed login, NFT state transitions, swap validation, and failed transactions.
+- Explicitly exclude internal administration and wallet experiment routes from production builds.
+
+## Conclusion
+
+DIALECT World DApp brought together several related Web3 frontend concerns: wallet connection, signed authentication, on-chain balances, token approvals, NFT state transitions, swaps, backend sessions, transaction feedback, localization, and mobile layout.
+
+Although the hosted service has stopped, the frontend repository still communicates the product's historical scope and engineering approach. Archiving the source, original artwork, and a technical retrospective is more accurate than preserving a demo that can no longer complete real operations, and it clearly separates the readable frontend from the missing services, contracts, and operational environment.
+
+> The repository currently has no open-source license, so it is described as source-available rather than open source. The code is presented for review and project documentation; permission to copy, modify, or distribute it depends on any license added to the repository in the future.

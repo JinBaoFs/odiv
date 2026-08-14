@@ -7,7 +7,7 @@ export type ProjectAction = {
 };
 
 export type ProjectItem = {
-  id: 'chaincatcher' | 'rootdata' | 'fomo-tool' | 'image-compressor' | 'atb-dapp' | 'zz-admin';
+  id: 'chaincatcher' | 'rootdata' | 'fomo-tool' | 'image-compressor' | 'dialect-world-dapp' | 'atb-dapp' | 'zz-admin';
   name: string;
   followerCount: number;
   date: string;
@@ -55,6 +55,16 @@ export const projects: ProjectItem[] = [
     actions: [
       {label: 'demo', href: '/image-compressor', openInNewTab: true},
       {label: 'doc', href: '/blog/image-compressor-guide', openInNewTab: true},
+    ],
+  },
+  {
+    id: 'dialect-world-dapp',
+    name: 'DIALECT World DApp',
+    followerCount: 24,
+    date: '2023',
+    actions: [
+      {label: 'source', href: 'https://github.com/JinBaoFs/dog.git', openInNewTab: true},
+      {label: 'doc', href: '/blog/dialect-world-dapp-case-study', openInNewTab: true},
     ],
   },
   {

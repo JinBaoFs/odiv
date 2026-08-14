@@ -80,6 +80,7 @@
       "rootdata": {"description": "一个已服务超过 200 万用户的 Web3 资产数据平台"},
       "fomo-tool": {"description": "代币发行模拟器，预测价格走势和投资回报"},
       "image-compressor": {"description": "纯前端多图片压缩工具，支持进度、预览与下载"},
+      "dialect-world-dapp": {"description": "已归档的 BSC DApp 前端，涵盖钱包登录、NFT 铸造与升级、DLW/USDT 兑换、奖励及团队数据展示"},
       "atb-dapp": {"description": "已归档的 BSC DApp 前端，实现钱包连接、ATB 质押、签名领取和团队数据展示"},
       "zz-admin": {"description": "已归档的气象监控运维后台，涵盖数据大屏、网络拓扑、值班流程、动态菜单与角色权限配置"}
     }
