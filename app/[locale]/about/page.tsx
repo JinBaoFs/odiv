@@ -1,6 +1,7 @@
 import {getLocale, getTranslations} from 'next-intl/server';
 import {Iconfont} from '@/components/icon-font';
 import {OwlCanvas} from '@/components/owl-canvas';
+import {ScrollAnchor} from '@/components/scroll-anchor';
 import {ToolNav} from '@/components/tool-nav';
 import {tools} from '@/config/tools';
 import {SkillTreemap} from './skill-treemap';
@@ -28,9 +29,9 @@ export default async function AboutPage() {
         <h2 className="o-title-text-h2">{t('skillsTitle')}</h2>
       </div>
       <SkillTreemap ariaLabel={t('skillsTitle')} ariaDescription={t('skillsChartDescription')} />
-      <div className="o-title mt-8" id="tool-nav">
+      <ScrollAnchor className="o-title mt-8" id="tool-nav" offset={32}>
         <h2 className="o-title-text-h2">{t('toolNav')}</h2>
-      </div>
+      </ScrollAnchor>
       <ToolNav items={tools} locale={locale} />
     </main>
   );

@@ -79,7 +79,7 @@ export default async function HomePage() {
             <div className={styles.titleLine}><span className={styles.spark} aria-hidden="true">✦</span><h2 id="home-tools-title">{t('explore.title')}</h2></div>
             <p>{t('explore.description')}</p>
           </div>
-          <Link className={styles.moreLink} href="/about#tool-nav">{t('common.viewAll')}</Link>
+          <Link className={styles.moreLink} href="/about#tool-nav" scroll={false}>{t('common.viewAll')}</Link>
         </div>
         <ToolNav items={featuredTools} locale={locale} />
       </section>
