@@ -1,0 +1,234 @@
+.page {
+  width: min(100%, 1060px);
+  min-height: clamp(540px, calc(100dvh - 150px), 650px);
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  padding: clamp(20px, 5vw, 64px) 0;
+}
+
+.card {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 430px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  align-items: center;
+  gap: clamp(20px, 5vw, 72px);
+  padding: clamp(32px, 6vw, 72px);
+}
+
+.card::before,
+.card::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.card::before {
+  width: 190px;
+  height: 190px;
+  top: -112px;
+  right: 9%;
+}
+
+.card::after {
+  width: 86px;
+  height: 86px;
+  right: -28px;
+  bottom: 36px;
+}
+
+.visual {
+  position: relative;
+  min-height: 290px;
+  display: grid;
+  place-items: center;
+}
+
+.visual::before {
+  content: '';
+  position: absolute;
+  width: min(100%, 300px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary-soft) 68%, transparent);
+  filter: blur(2px);
+}
+
+.errorNumber {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  translate: -50% 0;
+  color: color-mix(in srgb, var(--primary) 16%, transparent);
+  font-size: clamp(7.5rem, 15vw, 11rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.08em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.owlStage {
+  position: relative;
+  z-index: 1;
+  margin-top: 44px;
+  filter: drop-shadow(0 16px 18px color-mix(in srgb, var(--text) 14%, transparent));
+}
+
+.copy {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.copy h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(2.1rem, 4.6vw, 3.8rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.description {
+  max-width: 48ch;
+  margin: 22px 0 0;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.errorCode {
+  margin: 16px 0 0;
+  color: var(--text03);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.primaryAction,
+.secondaryAction {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.primaryAction {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #10241f;
+}
+
+.secondaryAction {
+  background: var(--background-02);
+  color: var(--text);
+}
+
+.primaryAction:hover,
+.secondaryAction:hover {
+  transform: translateY(-2px);
+}
+
+.secondaryAction:hover {
+  border-color: var(--primary);
+}
+
+.primaryAction:focus-visible,
+.secondaryAction:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+}
+
+@media (max-width: 760px) {
+  .page {
+    min-height: auto;
+    padding: 16px 0 36px;
+  }
+
+  .card {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 28px clamp(22px, 7vw, 38px) 36px;
+    text-align: center;
+  }
+
+  .visual {
+    min-height: 230px;
+  }
+
+  .errorNumber {
+    top: -4px;
+    font-size: clamp(7rem, 35vw, 10rem);
+  }
+
+  .owlStage {
+    margin-top: 30px;
+    transform: scale(0.84);
+  }
+
+  .copy {
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  .description {
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  .actions {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .card {
+    border-radius: 18px;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryAction,
+  .secondaryAction {
+    transition: none;
+  }
+
+  .primaryAction:hover,
+  .secondaryAction:hover {
+    transform: none;
+  }
+}

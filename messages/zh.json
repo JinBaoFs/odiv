@@ -3,6 +3,15 @@
     "language": "语言",
     "routeLoading": "猫头鹰正在带你前往新页面…"
   },
+  "NotFound": {
+    "eyebrow": "走丢了",
+    "title": "这片枝头没有你要找的页面",
+    "description": "猫头鹰找遍了数字花园，也没发现这个地址。它可能被移动、删除，或从未存在过。",
+    "errorCode": "错误代码 · 404",
+    "homeAction": "返回首页",
+    "blogAction": "去博客看看",
+    "owlAnimationLabel": "一只在树枝上打瞌睡的猫头鹰，正在寻找走失的页面"
+  },
   "Seo": {
     "home": {
       "title": "前端、Next.js 与 Web3 技术博客",

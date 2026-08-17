@@ -3,6 +3,15 @@
     "language": "Language",
     "routeLoading": "The owl is taking you to the next page…"
   },
+  "NotFound": {
+    "eyebrow": "Off the path",
+    "title": "There is no page on this branch",
+    "description": "The owl searched the whole digital garden but could not find this address. It may have moved, disappeared, or never existed.",
+    "errorCode": "Error code · 404",
+    "homeAction": "Back home",
+    "blogAction": "Explore the blog",
+    "owlAnimationLabel": "A sleepy owl perched on a branch, looking for a missing page"
+  },
   "Seo": {
     "home": {
       "title": "Frontend, Next.js and Web3 Blog",

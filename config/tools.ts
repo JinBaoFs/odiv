@@ -19,7 +19,6 @@ export const tools: ToolItem[] = [
     logoUrl: 'https://chainlist.org/favicon.ico',
     linkUrl: 'https://chainlist.org',
     openInNewTab: true,
-    homeOrder: 1,
   },
   {
     id: 'etherscan',
@@ -28,7 +27,6 @@ export const tools: ToolItem[] = [
     logoUrl: 'https://public.rootdata.com/images/b12/1671794703895.jpg',
     linkUrl: 'https://etherscan.io',
     openInNewTab: true,
-    homeOrder: 2,
   },
   {
     id: 'coingecko',
@@ -38,6 +36,7 @@ export const tools: ToolItem[] = [
     linkUrl: 'https://www.coingecko.com',
     openInNewTab: true,
     homeOrder: 3,
+    featuredOnHome: true,
   },
   {
     id: 'bscscan',
@@ -89,6 +88,7 @@ export const tools: ToolItem[] = [
     linkUrl: 'https://learnblockchain.cn',
     featuredOnHome: true,
     openInNewTab: true,
+    homeOrder: 2,
   },
   {
     id: 'openbuild',
@@ -98,6 +98,7 @@ export const tools: ToolItem[] = [
     linkUrl: 'https://openbuild.xyz',
     featuredOnHome: true,
     openInNewTab: true,
+    homeOrder: 1,
   },
   {
     id: 'opensea',
