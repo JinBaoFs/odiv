@@ -1,7 +1,9 @@
 export const siteConfig = {
   name: 'oDiv',
-  title: 'oDiv Blog Framework',
-  description: 'A Next.js 15 multilingual blog starter with configurable theme tokens.',
+  url: 'https://odiv-three.vercel.app',
+  title: 'oDiv',
+  description: 'oDiv 的个人技术博客，记录前端工程、Next.js、Web3 开发与真实项目实践。',
+  author: 'oDiv',
   locales: ['zh', 'en'] as const,
   defaultLocale: 'zh' as const,
   nav: [

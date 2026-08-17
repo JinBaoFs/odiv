@@ -1,12 +1,27 @@
+import type { Metadata } from "next"
 import { getTranslations, getLocale } from "next-intl/server"
 import type { Locale } from "@/lib/mdx-posts"
 import { listMdxPosts } from "@/lib/mdx-posts"
 import { Iconfont } from "@/components/icon-font"
 import { BlogList } from "./blog-list"
+import { createMetadata, normalizeLocale } from "@/lib/metadata"
 import "./page.scss"
 
 type Props = {
+  params: Promise<{ locale: string }>
   searchParams: Promise<{ tag?: string | string[] }>
+}
+
+export async function generateMetadata({ params }: Pick<Props, "params">): Promise<Metadata> {
+  const locale = normalizeLocale((await params).locale)
+  const t = await getTranslations({ locale, namespace: "Seo.blog" })
+
+  return createMetadata({
+    title: t("title"),
+    description: t("description"),
+    locale,
+    path: "/blog",
+  })
 }
 
 export default async function BlogListPage({ searchParams }: Props) {

@@ -3,6 +3,32 @@
     "language": "Language",
     "routeLoading": "The owl is taking you to the next page…"
   },
+  "Seo": {
+    "home": {
+      "title": "Frontend, Next.js and Web3 Blog",
+      "description": "The personal technology blog of oDiv, covering frontend engineering, Next.js, Web3 development, open-source work, and real-world projects."
+    },
+    "blog": {
+      "title": "Technology Blog",
+      "description": "Read oDiv's articles about frontend engineering, Next.js, React, TypeScript, Web3, and practical software development."
+    },
+    "projects": {
+      "title": "Frontend and Web3 Projects",
+      "description": "Explore frontend, Web3, data-platform, and open-source projects built or maintained by oDiv."
+    },
+    "about": {
+      "title": "About oDiv",
+      "description": "Learn about oDiv's frontend engineering experience, Web3 focus, technical skills, and writing topics."
+    },
+    "imageCompressor": {
+      "title": "Online Batch Image Compressor",
+      "description": "A free browser-based batch image compressor for JPEG, PNG, and WebP with local processing, previews, and downloads."
+    },
+    "fomoTool": {
+      "title": "Token Minting Model Calculator",
+      "description": "An educational simulator for token issuance, automated market making, and liquidity parameters; results are not investment advice."
+    }
+  },
   "Sidebar": {
     "title": "My Digital Garden",
     "description": "A multilingual blog shell with theme tokens, fixed sidebar and smooth reading flow.🌱",

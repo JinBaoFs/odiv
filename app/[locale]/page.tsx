@@ -1,3 +1,4 @@
+import type {Metadata} from 'next';
 import {getLocale, getTranslations} from 'next-intl/server';
 import {Iconfont} from '@/components/icon-font';
 import {OwlCanvas} from '@/components/owl-canvas';
@@ -9,7 +10,21 @@ import {tools} from '@/config/tools';
 import {Link} from '@/i18n/navigation';
 import {formatPostDate} from '@/lib/date';
 import {listMdxPosts, type Locale} from '@/lib/mdx-posts';
+import {createMetadata, normalizeLocale} from '@/lib/metadata';
 import styles from './home.module.scss';
+
+type Props = {params: Promise<{locale: string}>};
+
+export async function generateMetadata({params}: Props): Promise<Metadata> {
+  const locale = normalizeLocale((await params).locale);
+  const t = await getTranslations({locale, namespace: 'Seo.home'});
+
+  return createMetadata({
+    title: t('title'),
+    description: t('description'),
+    locale,
+  });
+}
 
 function byHomeOrder<T extends {homeOrder?: number}>(a: T, b: T) {
   return (a.homeOrder ?? Number.MAX_SAFE_INTEGER) - (b.homeOrder ?? Number.MAX_SAFE_INTEGER);
@@ -19,8 +34,8 @@ export default async function HomePage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations('Home');
   const projectT = await getTranslations('Projects');
-  const posts = (await listMdxPosts(locale)).filter((post) => post.featuredOnHome).sort(byHomeOrder).slice(0, 5);
-  const featuredProjects = projects.filter((project) => project.featuredOnHome).sort(byHomeOrder).slice(0, 3);
+  const posts = (await listMdxPosts(locale)).filter((post) => post.featuredOnHome).sort(byHomeOrder).slice(0, 6);
+  const featuredProjects = projects.filter((project) => project.featuredOnHome).sort(byHomeOrder).slice(0, 6);
   const featuredTools = tools.filter((tool) => tool.featuredOnHome).sort(byHomeOrder).slice(0, 6);
 
   return (

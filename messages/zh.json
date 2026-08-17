@@ -3,6 +3,32 @@
     "language": "语言",
     "routeLoading": "猫头鹰正在带你前往新页面…"
   },
+  "Seo": {
+    "home": {
+      "title": "前端、Next.js 与 Web3 技术博客",
+      "description": "oDiv 的个人技术博客，分享前端工程、Next.js、Web3 开发、开源项目与真实项目实践。"
+    },
+    "blog": {
+      "title": "技术博客",
+      "description": "阅读 oDiv 关于前端工程、Next.js、React、TypeScript、Web3 与开发实践的技术文章。"
+    },
+    "projects": {
+      "title": "前端与 Web3 项目",
+      "description": "查看 oDiv 参与和维护的前端、Web3、数据平台与开源项目实践。"
+    },
+    "about": {
+      "title": "关于 oDiv",
+      "description": "了解 oDiv 的前端开发经历、Web3 技术方向、工程技能与个人博客创作主题。"
+    },
+    "imageCompressor": {
+      "title": "在线批量图片压缩工具",
+      "description": "免费的浏览器端批量图片压缩工具，支持 JPEG、PNG 和 WebP，本地处理、预览并下载。"
+    },
+    "fomoTool": {
+      "title": "代币铸造模型计算器",
+      "description": "用于演示代币发行、自动做市和流动性参数的模拟计算工具，结果仅供学习与技术演示。"
+    }
+  },
   "Sidebar": {
     "title": "个人博客",
     "description": "oDiv的个人博客,一名多年经验的web3前端开发者。",

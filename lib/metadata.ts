@@ -1,49 +1,92 @@
-// lib/metadata.ts
-import type { Metadata } from "next"
-import { siteConfig } from "@/config/site"
+import type {Metadata} from 'next';
+import {siteConfig, type AppLocale} from '@/config/site';
 
-// 你可以按需要调整入参结构
 type SeoInput = {
-  title: string
-  description: string
-  path: string        // 相对路径，比如 "/"、"/blog"
-  image?: string      // OG 图，默认用一张全站默认图
+  title: string;
+  description: string;
+  locale: AppLocale;
+  path?: string;
+  image?: string;
+  type?: 'website' | 'article';
+  publishedTime?: string;
+  modifiedTime?: string;
+  tags?: string[];
+};
+
+export function normalizeLocale(locale: string): AppLocale {
+  return locale === 'en' ? 'en' : 'zh';
+}
+
+export function absoluteUrl(path = '/'): string {
+  return new URL(path, `${siteConfig.url}/`).toString();
+}
+
+export function localizedPath(locale: AppLocale, path = ''): string {
+  const normalizedPath = path === '/' ? '' : `/${path.replace(/^\/+|\/+$/g, '')}`;
+  return `/${locale}${normalizedPath}`;
+}
+
+export function localizedAlternates(path = '') {
+  return {
+    zh: absoluteUrl(localizedPath('zh', path)),
+    en: absoluteUrl(localizedPath('en', path)),
+    'x-default': absoluteUrl(localizedPath(siteConfig.defaultLocale, path)),
+  };
 }
 
 export function createMetadata({
   title,
   description,
+  locale,
   path,
-  image = "/og/default.png",
+  image = '/images/logo.png',
+  type = 'website',
+  publishedTime,
+  modifiedTime,
+  tags,
 }: SeoInput): Metadata {
-  const url = ``
+  const url = absoluteUrl(localizedPath(locale, path));
+  const imageUrl = absoluteUrl(image);
+  const openGraphLocale = locale === 'zh' ? 'zh_CN' : 'en_US';
+  const alternateLocale = locale === 'zh' ? 'en_US' : 'zh_CN';
 
   return {
     title,
     description,
     alternates: {
       canonical: url,
+      languages: localizedAlternates(path),
     },
-    openGraph: {
-      title,
-      description,
-      url,
-      type: "website",
-      siteName: siteConfig.title,
-      images: [
-        {
-          url: image,
-          width: 1200,
-          height: 630,
-          alt: title,
-        },
-      ],
-    },
+    openGraph:
+      type === 'article'
+        ? {
+            title,
+            description,
+            url,
+            type: 'article',
+            siteName: siteConfig.name,
+            locale: openGraphLocale,
+            alternateLocale,
+            publishedTime,
+            modifiedTime,
+            tags,
+            images: [{url: imageUrl, alt: title}],
+          }
+        : {
+            title,
+            description,
+            url,
+            type: 'website',
+            siteName: siteConfig.name,
+            locale: openGraphLocale,
+            alternateLocale,
+            images: [{url: imageUrl, alt: title}],
+          },
     twitter: {
-      card: "summary_large_image",
+      card: 'summary_large_image',
       title,
       description,
-      images: [image],
+      images: [imageUrl],
     },
-  }
+  };
 }

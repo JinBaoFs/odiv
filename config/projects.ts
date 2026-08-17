@@ -52,6 +52,8 @@ export const projects: ProjectItem[] = [
     name: 'Image Compressor',
     followerCount: 62,
     date: '2025',
+    featuredOnHome: true,
+    homeOrder: 4,
     actions: [
       {label: 'demo', href: '/image-compressor', openInNewTab: true},
       {label: 'doc', href: '/blog/image-compressor-guide', openInNewTab: true},
@@ -62,6 +64,8 @@ export const projects: ProjectItem[] = [
     name: 'DIALECT World DApp',
     followerCount: 24,
     date: '2023',
+    featuredOnHome: true,
+    homeOrder: 5,
     actions: [
       {label: 'source', href: 'https://github.com/JinBaoFs/dog.git', openInNewTab: true},
       {label: 'doc', href: '/blog/dialect-world-dapp-case-study', openInNewTab: true},
@@ -72,6 +76,8 @@ export const projects: ProjectItem[] = [
     name: 'ATB DApp',
     followerCount: 172,
     date: '2023',
+    featuredOnHome: true,
+    homeOrder: 6,
     actions: [
       {label: 'source', href: 'https://github.com/JinBaoFs/ATB-dapp', openInNewTab: true},
       {label: 'doc', href: '/blog/atb-dapp-case-study', openInNewTab: true},

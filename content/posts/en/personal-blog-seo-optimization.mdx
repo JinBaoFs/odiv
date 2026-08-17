@@ -1,0 +1,259 @@
+export const metadata = {
+  title: "Personal Blog SEO: A Practical Next.js and Vercel Guide",
+  description: "Implement SEO for a Next.js personal blog with metadata, canonical URLs, hreflang, sitemaps, robots, structured data, and Google Search Console.",
+  date: "2026-08-17",
+  slug: "personal-blog-seo-optimization",
+  lang: "en",
+  tags: ["seo", "nextjs", "vercel", "google-search", "blog"],
+  draft: false,
+  featuredOnHome: true,
+  homeOrder: 0,
+}
+
+Deploying a personal blog to Vercel makes it publicly accessible, but that alone does not tell Google which URLs to crawl, what each page is about, how language versions relate to one another, or which address is the canonical version.
+
+This guide uses a personal blog built with the Next.js App Router, MDX, `zh` / `en` routes, and Vercel. It covers a complete SEO foundation without requiring a database or a separate application backend.
+
+---
+
+## 1. Does a Blog Need a Backend for SEO?
+
+No. Search engines care whether a URL returns stable, understandable HTML, not whether the site owns a traditional backend or database.
+
+Next.js can render complete content through static generation, server rendering, and Server Components. When the article title, body, and links are already present in the returned HTML, Google does not need to wait for a complex client-side request before understanding the page.
+
+The pattern to avoid is an almost empty initial document that requires extensive JavaScript and API calls before the primary content appears. An MDX blog can normally generate its content during the build or on the server, which is simpler and easier for crawlers to process.
+
+## 2. Choose One Production Origin
+
+Every SEO URL should use the same production origin:
+
+```ts
+export const siteConfig = {
+  url: "https://odiv-three.vercel.app",
+  name: "oDiv",
+}
+```
+
+The central URL is used for:
+
+- canonical URLs
+- Open Graph URLs
+- article URLs in the sitemap
+- the sitemap location in `robots.txt`
+- author and article identifiers in JSON-LD
+
+If the same content is available through a custom domain, a `www` domain, and a Vercel domain, choose one as the primary host and permanently redirect the others. Do not leave the same article indexable at several addresses.
+
+When migrating to a custom domain later, update this central value together with redirects, canonical URLs, the sitemap, and the Search Console property.
+
+## 3. Generate Unique Metadata for Every Page
+
+Reusing one title across the entire site is one of the most common SEO problems on small blogs. The home page, blog index, projects, about page, tools, and every article need a distinct `title` and `description`.
+
+The App Router supports a static `metadata` export and dynamic `generateMetadata`:
+
+```ts
+export async function generateMetadata({params}: Props): Promise<Metadata> {
+  const {locale, slug} = await params
+  const {metadata} = await getMdxPost(locale, slug)
+
+  return {
+    title: metadata.title,
+    description: metadata.description,
+  }
+}
+```
+
+An article title should describe the reader's problem and the technical scope. “Development notes” is vague; “Browser Notifications and Permission Handling in the Next.js App Router” communicates a clear search intent.
+
+The description does not need repeated keywords. One or two sentences explaining the problem, technologies, and expected result are more useful.
+
+## 4. Handle Canonical and Bilingual Pages Correctly
+
+A canonical link identifies the official URL for the current document. The English version of this article should point to itself:
+
+```html
+<link
+  rel="canonical"
+  href="https://odiv-three.vercel.app/en/blog/personal-blog-seo-optimization"
+/>
+```
+
+The Chinese article should also canonicalize to its own Chinese URL. Connect the two versions with `hreflang`:
+
+```html
+<link rel="alternate" hreflang="zh" href="https://odiv-three.vercel.app/zh/blog/personal-blog-seo-optimization" />
+<link rel="alternate" hreflang="en" href="https://odiv-three.vercel.app/en/blog/personal-blog-seo-optimization" />
+<link rel="alternate" hreflang="x-default" href="https://odiv-three.vercel.app/zh/blog/personal-blog-seo-optimization" />
+```
+
+The initial HTML also needs the correct language attribute:
+
+```tsx
+<html lang={locale}>
+```
+
+Together, these signals identify the official address and distinguish the English and Chinese versions.
+
+## 5. Generate sitemap.xml from MDX
+
+A growing blog should not maintain XML by hand. Use `app/sitemap.ts` to derive URLs from MDX metadata:
+
+```ts
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const posts = await listMdxPosts("en")
+
+  return posts.map((post) => ({
+    url: `https://odiv-three.vercel.app/en/blog/${post.slug}`,
+    lastModified: new Date(post.updatedAt ?? post.date),
+    changeFrequency: "monthly",
+  }))
+}
+```
+
+A complete sitemap should also contain the English and Chinese home pages, blog indexes, about page, projects, and public tools. Filter out posts marked with `draft: true`.
+
+Do not include:
+
+- API routes
+- 404 pages
+- Vercel Preview Deployments
+- draft posts
+- query-string URLs that represent only filter state
+
+Use the real `updatedAt` or publication date for `lastModified`. Setting it to the current time on every request sends a misleading freshness signal.
+
+## 6. Publish robots.txt
+
+`app/robots.ts` can allow public pages and advertise the sitemap:
+
+```ts
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: {
+      userAgent: "*",
+      allow: "/",
+      disallow: ["/api/"],
+    },
+    sitemap: "https://odiv-three.vercel.app/sitemap.xml",
+  }
+}
+```
+
+Do not block CSS and JavaScript under `/_next/`; Google may need those assets to render the page correctly. Robots rules are also not a canonicalization mechanism. Use redirects and canonical links for duplicate URLs.
+
+## 7. Add Article Structured Data
+
+`BlogPosting` JSON-LD gives crawlers explicit information about the headline, author, dates, language, and canonical article page:
+
+```tsx
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: metadata.title,
+  description: metadata.description,
+  datePublished: metadata.date,
+  dateModified: metadata.updatedAt ?? metadata.date,
+  author: {
+    "@type": "Person",
+    name: "oDiv",
+  },
+}
+
+<script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+  }}
+/>
+```
+
+A `BreadcrumbList` can additionally describe the hierarchy from Home to Blog to the current article. Structured data does not guarantee higher rankings, but it reduces ambiguity and creates the foundation for eligible rich search appearances.
+
+## 8. Connect a Vercel Domain to Search Console
+
+With `odiv-three.vercel.app`, you cannot edit DNS for the parent `vercel.app` domain. Add a **URL-prefix property** in Google Search Console instead:
+
+```text
+https://odiv-three.vercel.app/
+```
+
+Verify it with an HTML file or meta tag. A Next.js project can read the verification value from an environment variable:
+
+```text
+GOOGLE_SITE_VERIFICATION=the-code-from-google
+```
+
+After deployment, submit:
+
+```text
+https://odiv-three.vercel.app/sitemap.xml
+```
+
+Use URL Inspection for the home page, blog index, and several important articles. Request indexing for an individual new page when needed, but use the sitemap for a larger collection of URLs.
+
+## 9. Content and Internal Links Drive Long-Term Results
+
+Technical SEO makes a page discoverable and understandable; it does not guarantee a strong position. A personal blog still needs helpful, specific content that answers real search queries.
+
+A useful technical article should:
+
+1. Focus on one clear problem or search intent.
+2. Describe the problem and technical scope in the title.
+3. Use one primary `h1` and structured `h2` / `h3` sections.
+4. Provide reproducible code, symptoms, versions, and limitations.
+5. Link to related articles on the same site.
+6. Give images accurate alternative text.
+7. Update `updatedAt` when the content materially changes.
+
+Build topic clusters around important subjects. A Next.js SEO article can link to deeper guides about metadata, dynamic Open Graph images, localized routing, performance, and Search Console diagnostics.
+
+## 10. Post-Deployment Checklist
+
+After an important SEO deployment, inspect:
+
+```text
+/robots.txt
+/sitemap.xml
+/zh
+/en
+/zh/blog/personal-blog-seo-optimization
+/en/blog/personal-blog-seo-optimization
+```
+
+Confirm in the rendered source that:
+
+- the title and description match the page
+- canonical points to the official current URL
+- `zh`, `en`, and `x-default` reference one another
+- `<html lang>` is correct
+- article dates, author, and JSON-LD are present
+- valid pages return `200` and missing posts return `404`
+- neither `robots.txt` nor meta tags accidentally apply `noindex`
+
+Finally, use Google's Rich Results Test, Search Console URL Inspection, and mobile PageSpeed Insights to verify what search engines receive.
+
+## Conclusion
+
+A Next.js personal blog can have a strong SEO foundation without a separate backend. The essential pieces are:
+
+- server-rendered or statically generated article content
+- one production origin
+- unique titles and descriptions
+- self-canonical URLs and bilingual `hreflang`
+- generated sitemap and robots files
+- `BlogPosting` and breadcrumb structured data
+- Search Console verification and monitoring
+- original, useful content connected by internal links
+
+SEO is not a one-time switch. Make the site crawlable and understandable first, then build durable search visibility through publishing, updating, and connecting high-quality content.
+
+## References
+
+- [Next.js Metadata and OG images](https://nextjs.org/docs/app/getting-started/metadata-and-og-images)
+- [Next.js sitemap.xml](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap)
+- [Google SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide)
+- [Google guide for multilingual sites](https://developers.google.com/search/docs/specialty/international/managing-multi-regional-sites)
+- [Google Article structured data](https://developers.google.com/search/docs/appearance/structured-data/article)
+

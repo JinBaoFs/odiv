@@ -1,13 +1,10 @@
-import {getTranslations} from 'next-intl/server';
+import {permanentRedirect} from 'next/navigation';
+import {localizedPath, normalizeLocale} from '@/lib/metadata';
 
-export default async function ArticlesPage() {
-  const t = await getTranslations('Articles');
+type Props = {params: Promise<{locale: string}>};
 
-  return (
-    <section className="panel">
-      <span className="eyebrow">{t('eyebrow')}</span>
-      <h2>{t('title')}</h2>
-      <p>{t('description')}</p>
-    </section>
-  );
+export default async function ArticlesPage({params}: Props) {
+  const locale = normalizeLocale((await params).locale);
+
+  permanentRedirect(localizedPath(locale, '/blog'));
 }
