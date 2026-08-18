@@ -1,0 +1,859 @@
+export const metadata = {
+  title: "Foundry Anvil Guide: Complete Commands, Local Chains, and Advanced Solidity Workflows",
+  description:
+    "A practical guide to Foundry Anvil accounts, mining, forks, state persistence, transaction pools, tracing, custom RPC methods, and Solidity development scenarios.",
+  date: "2025-09-17",
+  slug: "foundry-anvil-command-guide",
+  lang: "en",
+  tags: ["foundry", "anvil", "solidity", "ethereum", "web3", "local-node"],
+  draft: false,
+}
+
+Anvil is Foundry's local Ethereum JSON-RPC node. It starts quickly, provides prefunded development accounts and instant mining, and can fork any EVM-compatible network, control mining, manipulate time, impersonate accounts, edit balances and storage, persist chain state, and return execution traces.
+
+Forge's test runner is ideal for Solidity tests inside one process. Anvil is better when an application needs a long-running node: frontend integration, multi-process end-to-end tests, deployment rehearsal, wallet connections, transaction-pool testing, and mainnet-state reproduction.
+
+> Anvil is a development node, not a production client. Its default accounts, mnemonic, and private keys are public and must only be used locally. Anvil flags and custom RPC methods evolve with Foundry; check `anvil --help` and the current official RPC reference for the installed version.
+
+---
+
+## 1. Start a local node
+
+Confirm the installation:
+
+```bash
+anvil --version
+anvil --help
+```
+
+Start Anvil:
+
+```bash
+anvil
+```
+
+By default, Anvil:
+
+- Listens on `127.0.0.1:8545`
+- Generates 10 development accounts
+- Funds every account with 10,000 ETH
+- Uses chain ID `31337`
+- Mines a block immediately for every valid submitted transaction
+- Prints accounts, private keys, mnemonic, and node information
+
+Verify it from another terminal:
+
+```bash
+cast client --rpc-url http://127.0.0.1:8545
+cast chain-id --rpc-url http://127.0.0.1:8545
+cast block-number --rpc-url http://127.0.0.1:8545
+```
+
+Press `Ctrl + C` to stop it. Default state is in memory and disappears on exit; use `--state` or `--dump-state` when persistence is required.
+
+---
+
+## 2. Accounts, balances, and mnemonics
+
+Generate 20 accounts with 1,000 ETH each:
+
+```bash
+anvil --accounts 20 --balance 1000
+```
+
+Use a mnemonic for deterministic addresses:
+
+```bash
+anvil --mnemonic "your twelve or twenty four word test mnemonic"
+```
+
+Generate a random mnemonic:
+
+```bash
+anvil --mnemonic-random
+```
+
+Common account flags include:
+
+| Flag | Purpose |
+| --- | --- |
+| `--accounts <NUM>` | Number of development accounts |
+| `--balance <NUM>` | Initial ETH balance of each account |
+| `--mnemonic <WORDS>` | Use a specific BIP-39 mnemonic |
+| `--mnemonic-random [WORDS]` | Generate a random mnemonic |
+| `--mnemonic-seed-unsafe <SEED>` | Deterministically derive a mnemonic from an unsafe test seed |
+| `--derivation-path <PATH>` | Set the HD wallet derivation path |
+| `--config-out <FILE>` | Write startup and account configuration as JSON |
+
+Generate machine-readable startup configuration:
+
+```bash
+anvil --silent --config-out ./tmp/anvil-config.json
+```
+
+The output can contain sensitive test-account material. Even for local development, do not commit it publicly or mix it with production configuration.
+
+Anvil's default mnemonic is fixed and publicly known. Never send mainnet assets to these accounts or use them for airdrop eligibility, real signatures, or access control.
+
+---
+
+## 3. Host, port, and browser access
+
+Change the port:
+
+```bash
+anvil --port 9545
+```
+
+Listening only on the local machine is the safer default:
+
+```bash
+anvil --host 127.0.0.1 --port 8545
+```
+
+Docker, WSL, or LAN integration may require all interfaces:
+
+```bash
+anvil --host 0.0.0.0 --port 8545
+```
+
+`0.0.0.0` exposes the node to every device that can reach the port. Because Anvil offers state-editing and account-impersonation RPC methods, never expose it directly to the public internet. Restrict access with firewalls, container networks, or a secured reverse proxy.
+
+Allow a browser frontend origin:
+
+```bash
+anvil --allow-origin http://localhost:3000
+```
+
+Related server flags are:
+
+| Flag | Purpose |
+| --- | --- |
+| `--host <IP>` | RPC listening address |
+| `--port <PORT>` | HTTP/WebSocket RPC port |
+| `--allow-origin <ORIGIN>` | Allowed CORS Origin |
+| `--no-cors` | Disable CORS |
+| `--no-request-size-limit` | Remove request-body size limits; consider memory risk |
+| `--ipc [PATH]` | Start IPC where the platform supports it |
+| `--silent` | Suppress startup and RPC logs |
+
+---
+
+## 4. Chain ID, hardfork, and block environment
+
+Customize chain and initial block values:
+
+```bash
+anvil \
+  --chain-id 31338 \
+  --timestamp 1758067200 \
+  --gas-limit 30000000 \
+  --gas-price 1000000000 \
+  --block-base-fee-per-gas 1000000000
+```
+
+Select an EVM hardfork:
+
+```bash
+anvil --hardfork cancun
+```
+
+Important environment flags include:
+
+| Flag | Purpose |
+| --- | --- |
+| `--chain-id <ID>` | Set chain ID |
+| `--hardfork <NAME>` | Select London, Shanghai, Cancun, or another EVM ruleset |
+| `--timestamp <NUM>` | Set genesis timestamp |
+| `--number <NUM>` | Set initial block number where supported |
+| `--gas-limit <GAS>` | Set block gas limit |
+| `--disable-block-gas-limit` | Disable the call gas versus block gas constraint |
+| `--code-size-limit <BYTES>` | Change the EIP-170 runtime code-size limit |
+| `--disable-code-size-limit` | Disable the code-size limit for testing only |
+| `--gas-price <WEI>` | Set gas price |
+| `--block-base-fee-per-gas <WEI>` | Set block base fee |
+| `--disable-min-priority-fee` | Disable minimum priority-fee enforcement |
+
+The Solidity compiler's `evm_version` must be compatible with Anvil's hardfork. A contract compiled with a newer opcode can fail to deploy or execute on an older hardfork. Do not disable code-size limits by default merely to pass a test; the production chain still enforces its own rules.
+
+---
+
+## 5. Four mining modes
+
+### Instant mining
+
+The default mines a block for each transaction:
+
+```bash
+anvil
+```
+
+This gives the fastest feedback for normal contract development, scripts, and frontend integration.
+
+### Interval mining
+
+Mine every five seconds:
+
+```bash
+anvil --block-time 5
+```
+
+Several transactions can enter one block, which better models pending UI, confirmations, batches, and same-block ordering.
+
+### Manual mining
+
+Disable automatic mining:
+
+```bash
+anvil --no-mining
+```
+
+Submitted transactions remain pending. Mine one block manually:
+
+```bash
+cast rpc evm_mine
+```
+
+Mine several blocks:
+
+```bash
+cast rpc anvil_mine 0x5
+```
+
+This mode provides exact ordering control and supports pending and replacement-transaction tests.
+
+### Mixed mining
+
+```bash
+anvil --block-time 10 --mixed-mining
+```
+
+Mixed mode combines interval mining with immediate behavior in selected cases. Its exact semantics can change, so check `anvil --help` for the installed version.
+
+Control transaction ordering with `--order`:
+
+```bash
+anvil --no-mining --order fees
+anvil --no-mining --order fifo
+```
+
+`fees` approximates fee priority; `fifo` creates deterministic arrival-order tests. Neither reproduces every builder, MEV, or private-order-flow policy on a live network.
+
+---
+
+## 6. Use Anvil with Forge, Cast, and a frontend
+
+Set a shared RPC environment variable:
+
+```bash
+export ETH_RPC_URL=http://127.0.0.1:8545
+```
+
+Query with Cast:
+
+```bash
+cast chain-id
+cast block-number
+cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --ether
+```
+
+Deploy a Forge script:
+
+```bash
+forge script script/Deploy.s.sol:Deploy \
+  --rpc-url "$ETH_RPC_URL" \
+  --broadcast \
+  --private-key "$ANVIL_TEST_PRIVATE_KEY"
+```
+
+The key must belong to a local Anvil test account. Use an encrypted keystore or hardware wallet on public networks.
+
+A frontend wallet configuration normally uses:
+
+```text
+Network name: Anvil Local
+RPC URL: http://127.0.0.1:8545
+Chain ID: 31337
+Currency symbol: ETH
+```
+
+When browser, WSL, Docker, and host run in different network namespaces, `127.0.0.1` can refer to different machines. Configure port mappings and host addresses explicitly instead of disabling security controls blindly.
+
+---
+
+## 7. Fork mainnet or another EVM network
+
+Fork the latest state:
+
+```bash
+anvil --fork-url "$MAINNET_RPC_URL"
+```
+
+Pin a block for reproducibility:
+
+```bash
+anvil \
+  --fork-url "$MAINNET_RPC_URL" \
+  --fork-block-number 19000000
+```
+
+The block can also follow the URL:
+
+```bash
+anvil --fork-url "$MAINNET_RPC_URL@19000000"
+```
+
+Common fork flags include:
+
+| Flag | Purpose |
+| --- | --- |
+| `--fork-url <URL>` | Upstream JSON-RPC endpoint |
+| `--fork-block-number <BLOCK>` | Pin the fork block |
+| `--fork-transaction-hash <HASH>` | Fork near a transaction for reproduction |
+| `--fork-chain-id <ID>` | Set upstream chain ID or support cached offline startup |
+| `--fork-header <HEADER>` | Add an upstream RPC header |
+| `--timeout <MS>` | Upstream request timeout |
+| `--retries <NUM>` | Retry transient network failures |
+| `--fork-retry-backoff <MS>` | Set retry backoff |
+| `--compute-units-per-second <NUM>` | Configure provider rate budget |
+| `--no-rate-limit` | Disable Anvil's upstream rate limiter |
+| `--no-storage-caching` | Always fetch storage from upstream |
+| `--cache-path <PATH>` | Select the RPC cache directory |
+
+Pinned forks are useful for:
+
+- Integration with real tokens, DEXes, oracles, and lending protocols
+- Historical failed-transaction or incident reproduction
+- Governance proposal, proxy upgrade, and permission-migration testing
+- Validation against real pool and oracle state
+
+A fork is a local branch: writes do not change mainnet. Uncached reads still contact the upstream provider and remain subject to rate limits, archive availability, and method support.
+
+---
+
+## 8. Account impersonation
+
+Allow automatic impersonation at startup:
+
+```bash
+anvil --fork-url "$MAINNET_RPC_URL" --auto-impersonate
+```
+
+Or impersonate one account:
+
+```bash
+cast rpc anvil_impersonateAccount "$WHALE"
+```
+
+Give it local ETH for gas:
+
+```bash
+BALANCE_HEX=$(cast to-hex 100000000000000000000)
+cast rpc anvil_setBalance "$WHALE" "$BALANCE_HEX"
+```
+
+Send an unlocked transaction from the address:
+
+```bash
+cast send "$TOKEN" \
+  "transfer(address,uint256)" "$RECIPIENT" 1000000 \
+  --from "$WHALE" \
+  --unlocked
+```
+
+Stop impersonation:
+
+```bash
+cast rpc anvil_stopImpersonatingAccount "$WHALE"
+```
+
+This supports whale-balance integration, admin permission, governance execution, and multisig-call tests. Impersonation proves only that the address could perform the operation in the local fork state; it does not provide its private key or work on a public network.
+
+---
+
+## 9. Time, blocks, and automining control
+
+Disable and re-enable automining:
+
+```bash
+cast rpc evm_setAutomine false
+cast rpc evm_setAutomine true
+```
+
+Advance node time and mine:
+
+```bash
+cast rpc evm_increaseTime 3600
+cast rpc evm_mine
+```
+
+Set the next block timestamp:
+
+```bash
+cast rpc evm_setNextBlockTimestamp 1758067200
+cast rpc evm_mine
+```
+
+Set a timestamp interval:
+
+```bash
+cast rpc anvil_setBlockTimestampInterval 12
+```
+
+Set the next block base fee:
+
+```bash
+cast rpc anvil_setNextBlockBaseFeePerGas 0x3b9aca00
+cast rpc evm_mine
+```
+
+These methods support timelocks, auctions, TWAPs, governance delays, signature expiry, EIP-1559 fee handling, and confirmation tests. After changing time, mine a block so a contract can observe the new `block.timestamp`.
+
+---
+
+## 10. Snapshots, rollback, and persistence
+
+Create an in-memory snapshot:
+
+```bash
+SNAPSHOT_ID=$(cast rpc evm_snapshot)
+```
+
+Run test transactions and revert:
+
+```bash
+cast rpc evm_revert "$SNAPSHOT_ID"
+```
+
+Snapshot IDs are normally single-use. Create a new snapshot after reverting when the baseline must be reused.
+
+Load on startup and save on exit with one file:
+
+```bash
+anvil --state ./tmp/anvil-state.json
+```
+
+Control load and dump separately:
+
+```bash
+anvil --load-state ./fixtures/base-state.json
+anvil --dump-state ./tmp/final-state.json
+```
+
+Save periodically:
+
+```bash
+anvil \
+  --state ./tmp/anvil-state.json \
+  --state-interval 30
+```
+
+Dump and load while running through RPC:
+
+```bash
+STATE=$(cast rpc anvil_dumpState)
+cast rpc anvil_loadState "$STATE"
+```
+
+Persistence can reuse predeployed contracts in E2E tests, prepare repeatable demos, and preserve expensive protocol initialization. State files can be large and may contain test-account and application data; review them before committing.
+
+---
+
+## 11. Edit accounts, code, and storage directly
+
+Set an ETH balance:
+
+```bash
+cast rpc anvil_setBalance "$USER" 0x56bc75e2d63100000
+```
+
+Set an account nonce:
+
+```bash
+cast rpc anvil_setNonce "$USER" 0x10
+```
+
+Write runtime bytecode to an address:
+
+```bash
+cast rpc anvil_setCode "$TARGET" "$RUNTIME_BYTECODE"
+```
+
+Modify a storage slot:
+
+```bash
+cast rpc anvil_setStorageAt "$CONTRACT" 0x0 "$VALUE_BYTES32"
+```
+
+Use Forge storage layout and compute mapping slots before editing:
+
+```bash
+forge inspect src/Token.sol:Token storage-layout
+cast index address "$USER" 0
+```
+
+Direct state editing is useful for otherwise unreachable boundary conditions, upgrade migration tests, and incident reconstruction. It bypasses permissions, events, and invariants, so it is test setup—not proof that a real application flow is correct.
+
+---
+
+## 12. Transaction pool and replacement transactions
+
+Run manual mining to inspect pending transactions:
+
+```bash
+anvil --no-mining --order fees
+```
+
+Inspect the pool:
+
+```bash
+cast tx-pool status
+cast tx-pool inspect
+cast tx-pool content
+cast tx-pool content-from "$USER"
+```
+
+Remove a transaction from the pool:
+
+```bash
+cast rpc anvil_dropTransaction "$TX_HASH"
+```
+
+Applications include:
+
+- Same-nonce replacement with different gas prices
+- Wallet pending, cancel, and speed-up interfaces
+- Concurrent nonces from multiple accounts
+- Transaction selection under a block gas limit
+- Comparing fee-priority and FIFO execution
+
+Anvil's pool is designed for deterministic development and cannot reproduce every private policy of a live client or block builder.
+
+---
+
+## 13. Tracing and debugging
+
+Enable geth-style step tracing:
+
+```bash
+anvil --steps-tracing
+```
+
+Print more execution traces:
+
+```bash
+anvil --print-traces
+```
+
+Query a transaction trace:
+
+```bash
+cast rpc debug_traceTransaction "$TX_HASH" '{}'
+cast run "$TX_HASH" --rpc-url http://127.0.0.1:8545
+```
+
+Related flags include:
+
+| Flag | Purpose |
+| --- | --- |
+| `--steps-tracing` | Record opcode steps for geth-style debug calls |
+| `--print-traces` | Print transaction execution traces in the node terminal |
+| `--disable-console-log` | Disable special Solidity/Hardhat console handling |
+| `-v` / `-vv...` | Increase node log verbosity |
+| `--memory-limit <BYTES>` | Limit EVM execution memory against pathological requests |
+
+Tracing increases CPU, memory, and log volume. Keep the normal configuration light and enable detailed tracing only for revert, delegatecall, gas, or storage investigation.
+
+---
+
+## 14. Reset a fork and prepare a test baseline
+
+Restore the current fork's initial state:
+
+```bash
+cast rpc anvil_reset
+```
+
+`anvil_reset` can also accept a new fork configuration at runtime. Because its JSON shape can change, consult the installed RPC reference and use `cast rpc --raw` with the exact parameter array.
+
+A common E2E strategy is:
+
+```text
+Start a pinned-block fork
+  → deploy local implementations and fixtures
+  → create evm_snapshot
+  → execute one test case
+  → evm_revert to baseline
+  → create a fresh snapshot for the next case
+```
+
+This is faster than restarting the node per case and more reliable than accumulating shared state across cases. Parallel suites should use separate ports or separate Anvil processes.
+
+---
+
+## 15. Genesis, custom chains, and protocol modes
+
+Start from a genesis file:
+
+```bash
+anvil --init ./genesis.json
+```
+
+This can configure preallocated accounts, initial code, balances, and chain environment. The genesis schema must match what the installed Anvil version supports.
+
+Anvil also offers chain-specific semantic modes such as:
+
+```bash
+anvil --optimism
+```
+
+Some releases may expose Celo, Tempo, or other network options. These modes adjust relevant transaction and EVM semantics; they do not create a complete production network. Check version help and perform final acceptance on the target chain's real testnet.
+
+Anvil's default deterministic CREATE2 deployer supports identical-address tests across environments. To model a chain without it, inspect and use `--disable-default-create2-deployer`.
+
+---
+
+## 16. Complete Anvil CLI flag map
+
+Anvil is primarily controlled with startup flags and JSON-RPC methods instead of many CLI subcommands. Its top-level subcommands normally include `completions`, `generate-fig-spec`, and `help`.
+
+### General and account flags
+
+| Flag | Use case |
+| --- | --- |
+| `--accounts` | Set development account count |
+| `--balance` | Set initial ETH per account |
+| `--mnemonic` | Produce stable repeatable addresses |
+| `--mnemonic-random` | Generate fresh test accounts |
+| `--mnemonic-seed-unsafe` | Derive deterministic accounts from a test seed |
+| `--derivation-path` | Match a specific HD wallet path |
+| `--config-out` | Write account and node configuration as JSON |
+| `--silent` | Reduce logs in automation |
+| `--prune-history` | Limit historical state held in memory |
+| `--transaction-block-keeper` | Control retained blocks containing transactions |
+| `--max-persisted-states` | Limit persisted states where supported |
+
+### Mining and pool flags
+
+| Flag | Use case |
+| --- | --- |
+| `--block-time` | Mine on a fixed interval |
+| `--no-mining` | Require manual mining |
+| `--mixed-mining` | Combine interval and instant mining |
+| `--order fees|fifo` | Order pending transactions by fee or arrival |
+| `--slots-in-an-epoch` | Change slots per epoch for specialized simulation |
+| `--disable-pool-balance-checks` | Admit insufficient-balance transactions for edge tests |
+
+### State and server flags
+
+| Flag | Use case |
+| --- | --- |
+| `--state` | Load at startup and save to the same file on exit |
+| `--load-state` | Initialize from a state file |
+| `--dump-state` | Export state on exit |
+| `--state-interval` | Save state periodically |
+| `--preserve-historical-states` | Retain additional historical states where supported |
+| `--init` | Initialize from genesis.json |
+| `--host` / `--port` | Configure listening address and port |
+| `--allow-origin` / `--no-cors` | Control browser cross-origin access |
+| `--ipc` | Enable IPC transport |
+
+### Fork and cache flags
+
+| Flag | Use case |
+| --- | --- |
+| `--fork-url` | Fork a remote EVM network |
+| `--fork-block-number` | Pin a reproducible block |
+| `--fork-transaction-hash` | Target a transaction-reproduction point |
+| `--fork-chain-id` | Explicitly set fork chain ID |
+| `--fork-header` | Send upstream RPC headers |
+| `--timeout` / `--retries` | Handle unstable RPC endpoints |
+| `--fork-retry-backoff` | Configure retry delay |
+| `--compute-units-per-second` | Match provider rate quota |
+| `--no-rate-limit` | Disable upstream request throttling |
+| `--no-storage-caching` | Always retrieve storage upstream |
+| `--cache-path` | Select fork cache location |
+
+### EVM and safety-boundary flags
+
+| Flag | Use case |
+| --- | --- |
+| `--hardfork` | Select an EVM ruleset |
+| `--chain-id` | Set a custom chain ID |
+| `--gas-limit` / `--gas-price` | Model block gas and fees |
+| `--block-base-fee-per-gas` | Set EIP-1559 base fee |
+| `--code-size-limit` | Test another code-size limit |
+| `--disable-block-gas-limit` | Disable block gas constraints |
+| `--disable-code-size-limit` | Disable EIP-170 |
+| `--auto-impersonate` | Unlock arbitrary addresses in a fork |
+| `--steps-tracing` / `--print-traces` | Capture debugging traces |
+| `--disable-default-create2-deployer` | Remove the default CREATE2 deployer |
+| `--memory-limit` | Limit EVM execution memory |
+| `--optimism` | Enable OP-style chain semantics |
+
+---
+
+## 17. Common Anvil custom RPC method map
+
+Method names and parameters may change between releases. Check the official RPC reference before invoking them with `cast rpc <METHOD> ...`.
+
+### Mining and time
+
+| RPC method | Purpose |
+| --- | --- |
+| `evm_mine` / `anvil_mine` | Mine one or several blocks |
+| `evm_setAutomine` | Enable or disable automatic mining |
+| `anvil_setIntervalMining` | Change interval mining dynamically |
+| `evm_increaseTime` | Advance node time |
+| `evm_setNextBlockTimestamp` | Set the next block timestamp |
+| `anvil_setBlockTimestampInterval` | Set timestamp increments across blocks |
+| `anvil_removeBlockTimestampInterval` | Remove timestamp interval behavior |
+| `anvil_setNextBlockBaseFeePerGas` | Set the next block's base fee |
+
+### Snapshots, forks, and state
+
+| RPC method | Purpose |
+| --- | --- |
+| `evm_snapshot` / `evm_revert` | Create and restore an in-memory snapshot |
+| `anvil_reset` | Reset or replace fork configuration |
+| `anvil_dumpState` / `anvil_loadState` | Export or merge-load node state |
+| `anvil_nodeInfo` | Query Anvil node and fork information |
+
+### Accounts and EVM state
+
+| RPC method | Purpose |
+| --- | --- |
+| `anvil_impersonateAccount` | Impersonate an address |
+| `anvil_stopImpersonatingAccount` | Stop impersonating an address |
+| `anvil_autoImpersonateAccount` | Toggle automatic impersonation dynamically |
+| `anvil_setBalance` | Set an account's ETH balance |
+| `anvil_setNonce` | Set an account nonce |
+| `anvil_setCode` | Set runtime bytecode at an address |
+| `anvil_setStorageAt` | Edit a contract storage slot |
+| `anvil_setChainId` | Change chain ID where supported |
+| `anvil_setCoinbase` | Set the coinbase address |
+
+### Transaction pool and debugging
+
+| RPC method | Purpose |
+| --- | --- |
+| `anvil_dropTransaction` | Remove a pending transaction |
+| `txpool_status` / `txpool_content` / `txpool_inspect` | Inspect the pool |
+| `debug_traceTransaction` | Return an opcode-level debug trace |
+| `trace_transaction` | Return a call-level transaction trace |
+
+---
+
+## 18. Common Solidity development recipes
+
+### Frontend and contract integration
+
+```bash
+anvil --chain-id 31337 --block-time 2
+```
+
+Point the frontend at `http://127.0.0.1:8545` and use the same chain ID in deployment scripts. Pin a test mnemonic only when stable addresses are needed; never reuse a production mnemonic.
+
+### Reproduce historical protocol state
+
+```bash
+anvil \
+  --fork-url "$MAINNET_RPC_URL" \
+  --fork-block-number 19000000 \
+  --auto-impersonate
+```
+
+Record the block, Foundry version, and RPC type so another developer can reproduce the result.
+
+### Test a timelock
+
+```bash
+cast send "$TIMELOCK" "schedule(bytes32)" "$OPERATION" \
+  --private-key "$ANVIL_TEST_PRIVATE_KEY"
+cast rpc evm_increaseTime 172800
+cast rpc evm_mine
+cast send "$TIMELOCK" "execute(bytes32)" "$OPERATION" \
+  --private-key "$ANVIL_TEST_PRIVATE_KEY"
+```
+
+### Test transaction replacement
+
+```bash
+anvil --no-mining --order fees
+```
+
+Send transactions with the same account and nonce but different fees, mine manually, and verify how wallet and backend code handle the replaced hash.
+
+### Reuse a complex E2E environment
+
+```bash
+anvil --state ./tmp/e2e-state.json --state-interval 30
+```
+
+Run deployment and seed scripts on first startup; restore the file later. Record the generation scripts and versions whenever a fixture changes so an opaque state blob is not the only source of truth.
+
+---
+
+## 19. Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Port 8545 is in use | Another Anvil or development node is running | Stop it or use `--port 9545` |
+| Contracts disappear after restart | Default state is memory-only | Use `--state` or rerun deployment scripts |
+| Historical fork query fails | Upstream is not an archive RPC | Use an RPC that retains the target block state |
+| Fork is slow or returns 429 | Provider throttling or cold cache | Pin a block, retain cache, and tune rate/retry settings |
+| Impersonated transaction lacks funds | The address has no local gas balance | Use `anvil_setBalance` |
+| Contract still sees old time | No block was mined after time change | Call `evm_mine` |
+| Transactions remain pending | `--no-mining` is active | Mine manually or re-enable automining |
+| Browser cannot connect | Host, port, CORS, or network namespace mismatch | Check binding, mapping, and Origin |
+| Deployment hits invalid opcode | Compiler EVM target is newer than Anvil hardfork | Align `evm_version` and `--hardfork` |
+| Custom RPC returns method not found | Foundry version or method name differs | Update Foundry and inspect the current RPC reference |
+
+---
+
+## 20. Security and reproducibility checklist
+
+1. Use default mnemonic and keys only locally
+2. Never bind Anvil directly to the public internet
+3. Keep API keys embedded in fork URLs out of logs and Git
+4. Pin blocks for important forks
+5. Align Solidity `evm_version` with the Anvil hardfork
+6. Record chain ID, Foundry version, startup flags, and seed scripts
+7. Before broadcasting, confirm the RPC is local Anvil rather than a public network
+8. Do not treat impersonation or direct state editing as a substitute for real authorization tests
+9. Give parallel jobs separate ports and state files
+10. Make state fixtures reproducible from scripts
+
+A small but effective guard is:
+
+```bash
+cast chain-id --rpc-url "$ETH_RPC_URL"
+cast client --rpc-url "$ETH_RPC_URL"
+```
+
+Before using a public Anvil test key, verify that these commands identify the intended local node and chain ID.
+
+---
+
+## Summary
+
+Anvil provides a programmable local EVM environment for Solidity development:
+
+1. Use default instant mining for fast development and deployment
+2. Use `--block-time`, `--no-mining`, and `--order` for realistic transaction lifecycles
+3. Use `--fork-url` with a pinned block to reproduce protocol state
+4. Use impersonation, time control, and state editing for complex boundaries
+5. Use snapshots and state dump/load for fast reproducible E2E baselines
+6. Use transaction-pool and tracing methods for nonce, ordering, and internal-call investigation
+7. Use hardfork, gas, and code-size flags to test different EVM environments
+
+The critical boundary is that Anvil can bypass signatures, permissions, and organic state transitions. That makes it excellent for constructing test environments but insufficient by itself to prove production safety. Complete final acceptance on the target testnet with real network rules and secure signing.
+
+## References
+
+- [Foundry: Anvil Overview](https://getfoundry.sh/anvil/)
+- [Foundry: Anvil Forking](https://getfoundry.sh/anvil/forking/)
+- [Foundry: Mining and Transaction Pool](https://getfoundry.sh/anvil/mining/)
+- [Foundry: State Management](https://getfoundry.sh/anvil/state-management/)
+- [Foundry: Anvil Custom Methods](https://getfoundry.sh/anvil/custom-methods/)
+

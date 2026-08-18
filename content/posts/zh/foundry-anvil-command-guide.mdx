@@ -1,0 +1,859 @@
+export const metadata = {
+  title: "Foundry Anvil 工具详解：命令大全、本地链与 Solidity 开发高级用法",
+  description:
+    "系统介绍 Foundry Anvil 的账户、挖矿、Fork、状态持久化、交易池、Tracing、自定义 RPC 与网络参数，并给出 Solidity 开发常用场景。",
+  date: "2025-09-17",
+  slug: "foundry-anvil-command-guide",
+  lang: "zh",
+  tags: ["foundry", "anvil", "solidity", "ethereum", "web3", "local-node"],
+  draft: false,
+}
+
+Anvil 是 Foundry 工具链中的本地 Ethereum JSON-RPC 节点。它启动速度快，默认提供预充值测试账户和即时出块，并支持从任意 EVM 兼容网络 Fork 状态、控制挖矿、模拟时间、冒充账户、修改余额与存储、保存链状态以及输出执行轨迹。
+
+Forge 的测试运行器适合在单个进程中执行 Solidity 测试；Anvil 则更适合需要“长期运行节点”的场景，例如前端联调、多进程集成测试、部署脚本演练、钱包连接、交易池行为测试和主网状态复现。
+
+> Anvil 是开发节点，不是生产节点。默认账户、助记词和私钥全部公开，仅能用于本地测试。Anvil 参数与自定义 RPC 会随 Foundry 版本变化，本机版本以 `anvil --help` 和官方 RPC 参考为准。
+
+---
+
+## 一、启动第一个本地节点
+
+确认安装：
+
+```bash
+anvil --version
+anvil --help
+```
+
+直接启动：
+
+```bash
+anvil
+```
+
+默认情况下，Anvil 会：
+
+- 监听 `127.0.0.1:8545`
+- 生成 10 个开发账户
+- 为每个账户提供 10,000 ETH
+- 使用链 ID `31337`
+- 每收到一笔有效交易立即打包新区块
+- 在终端打印账户、私钥、助记词和节点信息
+
+新开一个终端验证节点：
+
+```bash
+cast client --rpc-url http://127.0.0.1:8545
+cast chain-id --rpc-url http://127.0.0.1:8545
+cast block-number --rpc-url http://127.0.0.1:8545
+```
+
+按 `Ctrl + C` 停止节点。默认状态位于内存中，停止后会丢失；需要保留状态时使用后文的 `--state` 或 `--dump-state`。
+
+---
+
+## 二、账户、余额与助记词
+
+生成 20 个账户，并为每个账户设置 1,000 ETH：
+
+```bash
+anvil --accounts 20 --balance 1000
+```
+
+使用指定助记词获得确定性地址：
+
+```bash
+anvil --mnemonic "your twelve or twenty four word test mnemonic"
+```
+
+生成随机助记词：
+
+```bash
+anvil --mnemonic-random
+```
+
+常用账户参数：
+
+| 参数 | 用途 |
+| --- | --- |
+| `--accounts <NUM>` | 生成的开发账户数量 |
+| `--balance <NUM>` | 每个开发账户的初始 ETH 数量 |
+| `--mnemonic <WORDS>` | 使用指定 BIP-39 助记词 |
+| `--mnemonic-random [WORDS]` | 生成随机助记词 |
+| `--mnemonic-seed-unsafe <SEED>` | 从测试 seed 确定性生成助记词，仅供不安全测试 |
+| `--derivation-path <PATH>` | 设置 HD 钱包派生路径 |
+| `--config-out <FILE>` | 把启动配置和账户信息输出为 JSON |
+
+为自动化生成节点配置：
+
+```bash
+anvil --silent --config-out ./tmp/anvil-config.json
+```
+
+`--config-out` 文件可能包含敏感的测试账户材料。即使它只用于本地，也不应提交到公开仓库或与生产配置混放。
+
+默认 Anvil 助记词是公开固定测试助记词。不要向这些账户转入主网资产，也不要把它们用于测试网空投资格、真实签名或访问控制。
+
+---
+
+## 三、监听地址、端口与浏览器访问
+
+修改端口：
+
+```bash
+anvil --port 9545
+```
+
+只监听本机是默认且更安全的方式：
+
+```bash
+anvil --host 127.0.0.1 --port 8545
+```
+
+Docker、WSL 或局域网联调可能需要监听所有网卡：
+
+```bash
+anvil --host 0.0.0.0 --port 8545
+```
+
+`0.0.0.0` 会把节点暴露给可访问该端口的其他设备。由于 Anvil 提供修改状态、冒充账户等调试 RPC，绝不能把它直接暴露到公网。应配合防火墙、容器网络或反向代理限制来源。
+
+浏览器前端需要 CORS 时：
+
+```bash
+anvil --allow-origin http://localhost:3000
+```
+
+相关服务器参数：
+
+| 参数 | 用途 |
+| --- | --- |
+| `--host <IP>` | RPC 监听地址 |
+| `--port <PORT>` | HTTP/WebSocket RPC 端口 |
+| `--allow-origin <ORIGIN>` | 设置允许的 CORS Origin |
+| `--no-cors` | 禁用 CORS |
+| `--no-request-size-limit` | 取消请求体大小限制，需评估内存风险 |
+| `--ipc [PATH]` | 启动 IPC 服务；平台支持情况不同 |
+| `--silent` | 不打印启动信息和 RPC 日志 |
+
+---
+
+## 四、链 ID、Hardfork 与区块环境
+
+自定义链 ID 和初始区块参数：
+
+```bash
+anvil \
+  --chain-id 31338 \
+  --timestamp 1758067200 \
+  --gas-limit 30000000 \
+  --gas-price 1000000000 \
+  --block-base-fee-per-gas 1000000000
+```
+
+选择 EVM Hardfork：
+
+```bash
+anvil --hardfork cancun
+```
+
+常用环境参数：
+
+| 参数 | 用途 |
+| --- | --- |
+| `--chain-id <ID>` | 设置链 ID |
+| `--hardfork <NAME>` | 选择 London、Shanghai、Cancun 等 EVM 规则 |
+| `--timestamp <NUM>` | 设置 genesis 时间戳 |
+| `--number <NUM>` | 设置初始区块号（以本机帮助为准） |
+| `--gas-limit <GAS>` | 设置区块 Gas 上限 |
+| `--disable-block-gas-limit` | 关闭调用 Gas 不得超过区块上限的约束 |
+| `--code-size-limit <BYTES>` | 调整 EIP-170 runtime code size 限制 |
+| `--disable-code-size-limit` | 关闭合约代码大小限制，仅适合测试 |
+| `--gas-price <WEI>` | 设置 Gas price |
+| `--block-base-fee-per-gas <WEI>` | 设置区块 base fee |
+| `--disable-min-priority-fee` | 关闭最低优先费约束 |
+
+Solidity 编译使用的 `evm_version` 应与 Anvil hardfork 兼容。例如合约包含某个新 EVM opcode，但节点运行较旧 hardfork 时，部署或调用会失败。不要为了让超大合约通过测试就默认关闭代码大小限制；生产部署仍会受到目标链规则约束。
+
+---
+
+## 五、四种挖矿模式
+
+### 1. 即时挖矿
+
+默认模式下，每提交一笔交易就立即生成区块：
+
+```bash
+anvil
+```
+
+适合普通合约开发、部署脚本和前端联调，反馈最快。
+
+### 2. 定时挖矿
+
+每 5 秒生成一个区块：
+
+```bash
+anvil --block-time 5
+```
+
+多笔交易可能进入同一区块，更接近真实网络的等待过程。适合测试 pending UI、确认数、批量交易和相同区块排序。
+
+### 3. 手动挖矿
+
+关闭自动挖矿：
+
+```bash
+anvil --no-mining
+```
+
+提交交易后，它们会留在交易池。手动产生一个区块：
+
+```bash
+cast rpc evm_mine
+```
+
+一次挖多个区块：
+
+```bash
+cast rpc anvil_mine 0x5
+```
+
+适合精确控制交易顺序、模拟 pending 状态和测试替换交易。
+
+### 4. Mixed mining
+
+```bash
+anvil --block-time 10 --mixed-mining
+```
+
+Mixed 模式结合间隔出块与特定情况下的即时行为。实际语义可能随版本调整，应使用 `anvil --help` 核对。
+
+交易排序可通过 `--order` 控制：
+
+```bash
+anvil --no-mining --order fees
+anvil --no-mining --order fifo
+```
+
+`fees` 更接近按费用优先，`fifo` 更适合按到达顺序构造确定性测试。排序规则只是本地模拟，不能完整复现真实 builder、MEV 和私有订单流。
+
+---
+
+## 六、与 Forge、Cast 和前端配合
+
+设置统一 RPC：
+
+```bash
+export ETH_RPC_URL=http://127.0.0.1:8545
+```
+
+用 Cast 查询：
+
+```bash
+cast chain-id
+cast block-number
+cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --ether
+```
+
+部署 Forge 脚本：
+
+```bash
+forge script script/Deploy.s.sol:Deploy \
+  --rpc-url "$ETH_RPC_URL" \
+  --broadcast \
+  --private-key "$ANVIL_TEST_PRIVATE_KEY"
+```
+
+这里的私钥只能来自本地 Anvil 测试账户。公共网络应使用加密 keystore 或硬件钱包。
+
+前端钱包配置通常为：
+
+```text
+Network name: Anvil Local
+RPC URL: http://127.0.0.1:8545
+Chain ID: 31337
+Currency symbol: ETH
+```
+
+如果浏览器、WSL、Docker 和宿主机不在同一网络命名空间，`127.0.0.1` 指向的对象可能不同。此时应明确端口映射和宿主机地址，而不是盲目关闭安全限制。
+
+---
+
+## 七、Fork 主网或其他 EVM 网络
+
+Fork 最新状态：
+
+```bash
+anvil --fork-url "$MAINNET_RPC_URL"
+```
+
+固定区块，保证复现：
+
+```bash
+anvil \
+  --fork-url "$MAINNET_RPC_URL" \
+  --fork-block-number 19000000
+```
+
+也可把区块号写在 URL 后：
+
+```bash
+anvil --fork-url "$MAINNET_RPC_URL@19000000"
+```
+
+常用 Fork 参数：
+
+| 参数 | 用途 |
+| --- | --- |
+| `--fork-url <URL>` | 远程 JSON-RPC 地址 |
+| `--fork-block-number <BLOCK>` | 固定 Fork 区块 |
+| `--fork-transaction-hash <HASH>` | Fork 到指定交易附近，用于复现 |
+| `--fork-chain-id <ID>` | 显式指定上游链 ID或支持缓存离线启动 |
+| `--fork-header <HEADER>` | 给上游 RPC 添加 Header |
+| `--timeout <MS>` | 上游 RPC 超时 |
+| `--retries <NUM>` | 网络失败重试次数 |
+| `--fork-retry-backoff <MS>` | 重试退避时间 |
+| `--compute-units-per-second <NUM>` | 配置上游服务商速率预算 |
+| `--no-rate-limit` | 禁用 Anvil 的上游速率限制 |
+| `--no-storage-caching` | 不缓存远程 storage，始终向上游读取 |
+| `--cache-path <PATH>` | 指定 RPC 缓存目录 |
+
+固定区块的 Fork 适合：
+
+- 调试与既有 DeFi 协议的集成
+- 复现历史失败交易或安全事件
+- 测试治理提案、代理升级和权限迁移
+- 使用真实代币、池子与预言机状态验证脚本
+
+Fork 是本地分支：写操作不会修改主网。读取未缓存状态时仍会访问上游 RPC，因此可能受到速率、archive 数据和服务商方法限制。
+
+---
+
+## 八、账户冒充：Fork 测试的高频特殊用法
+
+启动时允许自动冒充任意地址：
+
+```bash
+anvil --fork-url "$MAINNET_RPC_URL" --auto-impersonate
+```
+
+或只冒充指定账户：
+
+```bash
+cast rpc anvil_impersonateAccount "$WHALE"
+```
+
+设置本地余额，确保它能支付 Gas：
+
+```bash
+BALANCE_HEX=$(cast to-hex 100000000000000000000)
+cast rpc anvil_setBalance "$WHALE" "$BALANCE_HEX"
+```
+
+从该地址发送 unlocked 交易：
+
+```bash
+cast send "$TOKEN" \
+  "transfer(address,uint256)" "$RECIPIENT" 1000000 \
+  --from "$WHALE" \
+  --unlocked
+```
+
+停止冒充：
+
+```bash
+cast rpc anvil_stopImpersonatingAccount "$WHALE"
+```
+
+应用场景包括验证 whale 持仓交互、管理员权限、治理执行和多签调用。冒充只证明在该本地 Fork 状态下某地址能执行操作，不代表你拥有该地址私钥，也不能向公共网络发送它的交易。
+
+---
+
+## 九、时间、区块与自动挖矿控制
+
+关闭与重新开启自动挖矿：
+
+```bash
+cast rpc evm_setAutomine false
+cast rpc evm_setAutomine true
+```
+
+增加节点时间并挖块：
+
+```bash
+cast rpc evm_increaseTime 3600
+cast rpc evm_mine
+```
+
+设置下一个区块时间戳：
+
+```bash
+cast rpc evm_setNextBlockTimestamp 1758067200
+cast rpc evm_mine
+```
+
+设置区块时间戳间隔：
+
+```bash
+cast rpc anvil_setBlockTimestampInterval 12
+```
+
+设置下一块 base fee：
+
+```bash
+cast rpc anvil_setNextBlockBaseFeePerGas 0x3b9aca00
+cast rpc evm_mine
+```
+
+这些方法适合测试锁仓、拍卖、TWAP、治理延迟、过期签名、EIP-1559 费用和确认数。修改时间后通常必须挖出新区块，合约才能观察到新的 `block.timestamp`。
+
+---
+
+## 十、快照、回滚与状态持久化
+
+创建内存快照：
+
+```bash
+SNAPSHOT_ID=$(cast rpc evm_snapshot)
+```
+
+执行一系列测试交易后回滚：
+
+```bash
+cast rpc evm_revert "$SNAPSHOT_ID"
+```
+
+快照 ID 通常是一次性的；回滚后如需再次复用基线，应重新创建快照。
+
+启动时加载、退出时保存同一个状态文件：
+
+```bash
+anvil --state ./tmp/anvil-state.json
+```
+
+分别控制加载和保存：
+
+```bash
+anvil --load-state ./fixtures/base-state.json
+anvil --dump-state ./tmp/final-state.json
+```
+
+定期保存：
+
+```bash
+anvil \
+  --state ./tmp/anvil-state.json \
+  --state-interval 30
+```
+
+也可以通过 RPC 在运行时导出和加载：
+
+```bash
+STATE=$(cast rpc anvil_dumpState)
+cast rpc anvil_loadState "$STATE"
+```
+
+用途包括端到端测试复用预部署合约、准备可重复 demo 数据和保存复杂协议初始化结果。状态文件可能很大，也可能包含测试账户和业务数据；不要未经审查就提交仓库。
+
+---
+
+## 十一、直接修改账户、代码与存储
+
+设置 ETH 余额：
+
+```bash
+cast rpc anvil_setBalance "$USER" 0x56bc75e2d63100000
+```
+
+设置账户 nonce：
+
+```bash
+cast rpc anvil_setNonce "$USER" 0x10
+```
+
+把 runtime bytecode 写到地址：
+
+```bash
+cast rpc anvil_setCode "$TARGET" "$RUNTIME_BYTECODE"
+```
+
+修改存储槽：
+
+```bash
+cast rpc anvil_setStorageAt "$CONTRACT" 0x0 "$VALUE_BYTES32"
+```
+
+先用 Forge 获取 storage layout，再计算 mapping 或嵌套结构槽位：
+
+```bash
+forge inspect src/Token.sol:Token storage-layout
+cast index address "$USER" 0
+```
+
+直接修改状态适合构造难以通过公开函数到达的边界条件、测试升级迁移和恢复事故现场。它会绕过合约权限、事件和不变量，只能作为测试准备手段，不能证明真实业务流程正确。
+
+---
+
+## 十二、交易池、替换交易与排序
+
+使用手动挖矿观察 pending 交易：
+
+```bash
+anvil --no-mining --order fees
+```
+
+查看交易池：
+
+```bash
+cast tx-pool status
+cast tx-pool inspect
+cast tx-pool content
+cast tx-pool content-from "$USER"
+```
+
+从池中移除交易：
+
+```bash
+cast rpc anvil_dropTransaction "$TX_HASH"
+```
+
+应用场景：
+
+- 同 nonce、不同 Gas 价格的替换交易
+- 钱包 pending/cancel/speed-up UI
+- 多账户 nonce 并发
+- 区块 Gas 上限下的交易选择
+- 按费用与 FIFO 顺序对比执行结果
+
+Anvil 的交易池用于确定性开发测试，不能完整复制某个真实客户端或 builder 的私有策略。
+
+---
+
+## 十三、Tracing、调试与控制台日志
+
+启用 geth 风格 step tracing：
+
+```bash
+anvil --steps-tracing
+```
+
+打印更多执行轨迹：
+
+```bash
+anvil --print-traces
+```
+
+查询交易轨迹：
+
+```bash
+cast rpc debug_traceTransaction "$TX_HASH" '{}'
+cast run "$TX_HASH" --rpc-url http://127.0.0.1:8545
+```
+
+相关参数：
+
+| 参数 | 用途 |
+| --- | --- |
+| `--steps-tracing` | 启用 opcode step 数据，支持 geth 风格 debug 调用 |
+| `--print-traces` | 在节点端输出交易执行轨迹 |
+| `--disable-console-log` | 禁用对 Solidity/Hardhat console 日志的特殊处理 |
+| `-v` / `-vv...` | 增加节点日志详细程度 |
+| `--memory-limit <BYTES>` | 调整 EVM 内存限制，防止异常请求耗尽资源 |
+
+Tracing 会增加 CPU、内存和日志量。平时保持轻量配置，只在定位 revert、delegatecall、Gas 或 storage 问题时开启。
+
+---
+
+## 十四、重置 Fork 与准备测试基线
+
+恢复当前 Fork 的初始状态：
+
+```bash
+cast rpc anvil_reset
+```
+
+运行时切换上游或区块可向 `anvil_reset` 传入 Fork 配置。由于 JSON 结构可能随版本变化，先查看官方 RPC 参考并使用 `cast rpc --raw` 发送准确参数。
+
+端到端测试常见策略：
+
+```text
+启动固定区块 Fork
+  → 部署本地实现或测试辅助合约
+  → 创建 evm_snapshot
+  → 执行一个测试用例
+  → evm_revert 回到基线
+  → 为下一用例重新 snapshot
+```
+
+这种方式比每个用例重启节点更快，又比让所有用例共享累积状态更稳定。并行测试应使用不同端口或独立 Anvil 实例，避免互相修改链状态。
+
+---
+
+## 十五、Genesis、自定义链与协议模式
+
+从 genesis 文件启动：
+
+```bash
+anvil --init ./genesis.json
+```
+
+它适合配置预分配账户、初始代码、余额与链环境。Genesis 格式和字段必须与 Anvil 支持的规范一致。
+
+Anvil 还提供面向特定链语义的模式，例如：
+
+```bash
+anvil --optimism
+```
+
+部分版本还可能提供 Celo、Tempo 或其他网络选项。这些模式不是“自动变成完整生产网络”，而是调整相关交易/EVM 语义。使用前应核对当前版本帮助，并通过目标链的真实测试网完成最终验收。
+
+默认确定性 CREATE2 deployer 可用于跨环境地址一致性测试。若要验证“不存在预部署 deployer”的环境，可查看并使用 `--disable-default-create2-deployer`。
+
+---
+
+## 十六、Anvil 命令与参数大全速查
+
+Anvil 主要通过启动参数和 JSON-RPC 方法控制，而不是大量 CLI 子命令。顶层子命令通常包括 `completions`、`generate-fig-spec` 和 `help`。
+
+### 通用与账户参数
+
+| 参数 | 应用场景 |
+| --- | --- |
+| `--accounts` | 自定义测试账户数量 |
+| `--balance` | 自定义每个账户的初始 ETH |
+| `--mnemonic` | 获得稳定可重复的地址 |
+| `--mnemonic-random` | 每次生成新的测试账户 |
+| `--mnemonic-seed-unsafe` | 由测试 seed 确定性生成账户 |
+| `--derivation-path` | 匹配指定 HD 钱包路径 |
+| `--config-out` | 输出账户和节点配置 JSON |
+| `--silent` | 自动化运行时减少日志 |
+| `--prune-history` | 限制内存中的历史状态 |
+| `--transaction-block-keeper` | 控制保留含交易区块的数量 |
+| `--max-persisted-states` | 控制持久化状态数量（版本相关） |
+
+### 挖矿与交易池参数
+
+| 参数 | 应用场景 |
+| --- | --- |
+| `--block-time` | 固定间隔产生区块 |
+| `--no-mining` | 完全手动挖矿 |
+| `--mixed-mining` | 混合即时与间隔挖矿 |
+| `--order fees|fifo` | 按费用或到达顺序选择交易 |
+| `--slots-in-an-epoch` | 调整 epoch 中 slot 数量（特定模拟） |
+| `--disable-pool-balance-checks` | 允许余额不足交易进入池，仅限边界测试 |
+
+### 状态与服务器参数
+
+| 参数 | 应用场景 |
+| --- | --- |
+| `--state` | 启动加载且退出保存同一状态文件 |
+| `--load-state` | 从状态文件初始化 |
+| `--dump-state` | 退出时导出状态 |
+| `--state-interval` | 周期性保存状态 |
+| `--preserve-historical-states` | 保存更多历史状态（版本相关） |
+| `--init` | 使用 genesis.json 初始化 |
+| `--host` / `--port` | 配置监听地址和端口 |
+| `--allow-origin` / `--no-cors` | 控制浏览器跨域访问 |
+| `--ipc` | 启用 IPC transport |
+
+### Fork 与缓存参数
+
+| 参数 | 应用场景 |
+| --- | --- |
+| `--fork-url` | 从远程 EVM 网络 Fork |
+| `--fork-block-number` | 固定可复现区块 |
+| `--fork-transaction-hash` | 定位交易复现场景 |
+| `--fork-chain-id` | 显式指定 Fork 链 ID |
+| `--fork-header` | 携带上游 RPC Header |
+| `--timeout` / `--retries` | 处理不稳定 RPC |
+| `--fork-retry-backoff` | 控制重试退避 |
+| `--compute-units-per-second` | 匹配服务商速率额度 |
+| `--no-rate-limit` | 关闭上游请求限速 |
+| `--no-storage-caching` | 每次从上游读取 storage |
+| `--cache-path` | 指定 Fork 缓存路径 |
+
+### EVM 与安全边界参数
+
+| 参数 | 应用场景 |
+| --- | --- |
+| `--hardfork` | 选择 EVM 规则版本 |
+| `--chain-id` | 自定义链 ID |
+| `--gas-limit` / `--gas-price` | 模拟区块 Gas 与费用 |
+| `--block-base-fee-per-gas` | 设置 EIP-1559 base fee |
+| `--code-size-limit` | 测试不同代码大小限制 |
+| `--disable-block-gas-limit` | 关闭区块 Gas 约束 |
+| `--disable-code-size-limit` | 关闭 EIP-170 限制 |
+| `--auto-impersonate` | 自动解锁任意地址用于 Fork 测试 |
+| `--steps-tracing` / `--print-traces` | 获取调试轨迹 |
+| `--disable-default-create2-deployer` | 移除默认 CREATE2 deployer |
+| `--memory-limit` | 限制 EVM 执行内存 |
+| `--optimism` | 启用 OP 风格链语义 |
+
+---
+
+## 十七、常用 Anvil 自定义 RPC 大全
+
+不同版本的方法名和参数可能调整，使用 `cast rpc <METHOD> ...` 调用前应核对官方 RPC 参考。
+
+### 挖矿与时间
+
+| RPC 方法 | 用途 |
+| --- | --- |
+| `evm_mine` / `anvil_mine` | 挖一个或多个区块 |
+| `evm_setAutomine` | 开关自动挖矿 |
+| `anvil_setIntervalMining` | 动态设置间隔挖矿 |
+| `evm_increaseTime` | 增加节点时间 |
+| `evm_setNextBlockTimestamp` | 设置下一块时间戳 |
+| `anvil_setBlockTimestampInterval` | 设置连续区块时间间隔 |
+| `anvil_removeBlockTimestampInterval` | 移除时间间隔设置 |
+| `anvil_setNextBlockBaseFeePerGas` | 设置下一块 base fee |
+
+### 快照、Fork 与状态
+
+| RPC 方法 | 用途 |
+| --- | --- |
+| `evm_snapshot` / `evm_revert` | 创建并恢复内存快照 |
+| `anvil_reset` | 重置或更换 Fork 配置 |
+| `anvil_dumpState` / `anvil_loadState` | 导出或合并加载节点状态 |
+| `anvil_nodeInfo` | 查询 Anvil 节点与 Fork 信息 |
+
+### 账户和 EVM 状态
+
+| RPC 方法 | 用途 |
+| --- | --- |
+| `anvil_impersonateAccount` | 冒充指定账户 |
+| `anvil_stopImpersonatingAccount` | 停止冒充账户 |
+| `anvil_autoImpersonateAccount` | 动态开关自动冒充 |
+| `anvil_setBalance` | 设置账户 ETH 余额 |
+| `anvil_setNonce` | 设置账户 nonce |
+| `anvil_setCode` | 设置地址 runtime bytecode |
+| `anvil_setStorageAt` | 修改合约存储槽 |
+| `anvil_setChainId` | 动态设置链 ID（版本相关） |
+| `anvil_setCoinbase` | 设置 coinbase 地址 |
+
+### 交易池与调试
+
+| RPC 方法 | 用途 |
+| --- | --- |
+| `anvil_dropTransaction` | 从交易池删除 pending 交易 |
+| `txpool_status` / `txpool_content` / `txpool_inspect` | 查看交易池 |
+| `debug_traceTransaction` | 获取交易 opcode 调试轨迹 |
+| `trace_transaction` | 获取调用级交易轨迹 |
+
+---
+
+## 十八、Solidity 开发常用组合场景
+
+### 前端与合约联调
+
+```bash
+anvil --chain-id 31337 --block-time 2
+```
+
+前端连接 `http://127.0.0.1:8545`，部署脚本与前端使用同一 chain ID。需要稳定地址时固定测试助记词，但不要复用生产助记词。
+
+### 复现协议历史状态
+
+```bash
+anvil \
+  --fork-url "$MAINNET_RPC_URL" \
+  --fork-block-number 19000000 \
+  --auto-impersonate
+```
+
+固定区块、记录 Foundry 版本和 RPC 类型，才能让其他开发者复现结果。
+
+### 测试 timelock
+
+```bash
+cast send "$TIMELOCK" "schedule(bytes32)" "$OPERATION" \
+  --private-key "$ANVIL_TEST_PRIVATE_KEY"
+cast rpc evm_increaseTime 172800
+cast rpc evm_mine
+cast send "$TIMELOCK" "execute(bytes32)" "$OPERATION" \
+  --private-key "$ANVIL_TEST_PRIVATE_KEY"
+```
+
+### 测试替换交易
+
+```bash
+anvil --no-mining --order fees
+```
+
+用同一账户、同一 nonce 发送不同费用交易，再手动挖块，检查钱包和后端如何处理被替换的哈希。
+
+### 预部署复杂环境供 E2E 复用
+
+```bash
+anvil --state ./tmp/e2e-state.json --state-interval 30
+```
+
+首次启动后执行部署与 seed 脚本；后续从状态文件恢复。状态 fixture 更新时应同时记录生成脚本和版本，避免不可追踪的二进制状态成为唯一真相。
+
+---
+
+## 十九、常见问题
+
+| 现象 | 常见原因 | 处理方式 |
+| --- | --- | --- |
+| 8545 端口被占用 | 另一个 Anvil 或开发节点运行中 | 停止旧进程或使用 `--port 9545` |
+| 重启后合约消失 | 默认状态只在内存中 | 使用 `--state` 或重新运行部署脚本 |
+| Fork 查询历史状态失败 | 上游不是 archive RPC | 更换支持目标区块历史状态的 RPC |
+| Fork 很慢或返回 429 | RPC 限速或缓存未命中 | 固定区块、保留缓存并调整速率/重试参数 |
+| 冒充账户交易余额不足 | 被冒充地址没有本地 Gas | 用 `anvil_setBalance` 设置 ETH |
+| 修改时间后合约仍读到旧值 | 尚未产生新区块 | 调用 `evm_mine` |
+| 交易一直 pending | 使用了 `--no-mining` | 手动挖块或重新开启 automine |
+| 前端连不上节点 | host、端口、CORS 或网络命名空间错误 | 核对监听地址、端口映射和 Origin |
+| 部署出现 invalid opcode | 编译 EVM 版本比 Anvil hardfork 新 | 对齐 `evm_version` 与 `--hardfork` |
+| 自定义 RPC method not found | Foundry 版本不同或方法名变化 | 更新 Foundry，并检查当前官方 RPC 参考 |
+
+---
+
+## 二十、安全与可复现性检查
+
+1. 默认助记词和私钥只用于本地
+2. Anvil 不直接监听公网地址
+3. Fork URL 中的 API Key 不写入日志或 Git
+4. 关键 Fork 固定区块号
+5. Solidity `evm_version` 与 Anvil hardfork 对齐
+6. 主动记录 chain ID、Foundry 版本、启动参数和 seed 脚本
+7. 广播前确认 RPC 确实是本地 Anvil，而不是公共网络
+8. 不把 `--auto-impersonate`、状态修改 RPC 当作真实权限测试的替代品
+9. 并行任务使用独立端口和状态文件
+10. 状态 fixture 可由脚本重新生成，而不是只能手工维护
+
+一个简单但有效的防误操作检查是：
+
+```bash
+cast chain-id --rpc-url "$ETH_RPC_URL"
+cast client --rpc-url "$ETH_RPC_URL"
+```
+
+在使用公开的 Anvil 测试私钥前，必须确认返回的是预期本地节点和链 ID。
+
+---
+
+## 总结
+
+Anvil 为 Solidity 开发提供了一个可编程的本地 EVM 环境：
+
+1. 用默认即时挖矿完成快速开发和部署
+2. 用 `--block-time`、`--no-mining` 和 `--order` 测试真实交易生命周期
+3. 用 `--fork-url` 和固定区块复现链上协议状态
+4. 用账户冒充、时间控制和状态修改构造复杂边界条件
+5. 用 snapshot、state dump/load 建立快速可复现的 E2E 基线
+6. 用 transaction pool 和 tracing 排查 nonce、排序与内部调用
+7. 用 Hardfork、Gas 和代码大小参数验证不同 EVM 环境
+
+最重要的边界是：Anvil 可以绕过签名、权限和状态演进，因此它非常适合构造测试环境，却不能单独证明生产系统安全。最终部署仍需在目标测试网验证，并使用真实网络的规则和安全签名流程。
+
+## 参考资料
+
+- [Foundry：Anvil Overview](https://getfoundry.sh/anvil/)
+- [Foundry：Anvil Forking](https://getfoundry.sh/anvil/forking/)
+- [Foundry：Mining and Transaction Pool](https://getfoundry.sh/anvil/mining/)
+- [Foundry：State Management](https://getfoundry.sh/anvil/state-management/)
+- [Foundry：Anvil Custom Methods](https://getfoundry.sh/anvil/custom-methods/)
+

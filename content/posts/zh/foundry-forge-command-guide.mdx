@@ -1,0 +1,880 @@
+export const metadata = {
+  title: "Foundry Forge 工具详解：命令大全、Solidity 开发流程与高级用法",
+  description:
+    "系统介绍 Foundry Forge 的项目、依赖、编译、测试、覆盖率、Gas、脚本部署、合约验证与分析命令，并给出 Solidity 开发常用场景。",
+  date: "2025-09-16",
+  slug: "foundry-forge-command-guide",
+  lang: "zh",
+  tags: ["foundry", "forge", "solidity", "ethereum", "web3", "testing"],
+  draft: false,
+}
+
+Forge 是 Foundry 工具链中面向 Solidity 项目生命周期的核心命令行程序。它不仅能编译合约，还负责项目初始化、依赖管理、单元测试、模糊测试、状态不变量测试、主网分叉测试、Gas 分析、部署脚本、源码验证和构建产物检查。
+
+如果把 Foundry 看成一套完整工作台：Forge 负责“开发与交付”，Cast 负责“链上查询与交互”，Anvil 负责“本地节点”，Chisel 负责“交互式 Solidity 实验”。日常 Solidity 开发的大多数工作都会从 `forge` 开始。
+
+> Forge 的命令和选项会随 Foundry 版本演进。本文按功能介绍主要命令与稳定工作流；本机版本始终以 `forge --help` 和 `forge <command> --help` 为准。
+
+---
+
+## 一、安装确认与基本帮助
+
+确认 Forge 可用：
+
+```bash
+forge --version
+forge --help
+```
+
+查看某个子命令的全部参数：
+
+```bash
+forge test --help
+forge script --help
+forge verify-contract --help
+```
+
+Forge 常见全局选项包括：
+
+- `-h, --help`：显示帮助
+- `-V, --version`：显示版本
+- `-j, --threads`：控制并行线程数
+- `-q, --quiet`：减少输出
+- `-v` 至 `-vvvvv`：逐级增加日志、调用轨迹和存储变化
+- `--root <PATH>`：指定项目根目录
+- `--config-path <FILE>`：指定配置文件
+- `--profile <NAME>`：选择 `foundry.toml` 配置 profile
+
+遇到陌生命令时先运行 `--help`，不要直接复制旧教程中的参数到生产部署流程。
+
+---
+
+## 二、初始化项目与目录结构
+
+创建新项目：
+
+```bash
+forge init hello_foundry
+cd hello_foundry
+```
+
+默认结构通常为：
+
+```text
+hello_foundry/
+├── foundry.toml
+├── lib/
+│   └── forge-std/
+├── script/
+│   └── Counter.s.sol
+├── src/
+│   └── Counter.sol
+└── test/
+    └── Counter.t.sol
+```
+
+在已有空目录初始化：
+
+```bash
+mkdir my_contracts
+cd my_contracts
+forge init .
+```
+
+常用初始化选项：
+
+```bash
+forge init my_contracts --no-git
+forge init my_contracts --force
+forge init my_contracts --empty
+```
+
+- `--no-git` 不初始化 Git 仓库或子模块
+- `--force` 允许在非空目录初始化，应先确认不会覆盖重要文件
+- `--empty` 只建立基础结构，不生成 Counter 示例
+
+初始化后先运行：
+
+```bash
+forge build
+forge test
+```
+
+这样可以确认编译器下载、依赖解析和测试运行器均可正常工作。
+
+---
+
+## 三、`foundry.toml` 配置核心
+
+Forge 默认读取项目根目录的 `foundry.toml`：
+
+```toml
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+evm_version = "cancun"
+
+[profile.ci]
+fuzz = { runs = 1000 }
+invariant = { runs = 256, depth = 100 }
+
+[rpc_endpoints]
+mainnet = "${MAINNET_RPC_URL}"
+sepolia = "${SEPOLIA_RPC_URL}"
+```
+
+查看 Forge 最终合并后的配置：
+
+```bash
+forge config
+forge config --json
+FOUNDRY_PROFILE=ci forge config
+```
+
+命令行参数通常会覆盖配置文件。团队应固定 Solidity 版本、EVM 版本和优化器配置，因为这些值会改变 bytecode、CREATE2 地址、Gas 结果与源码验证结果。
+
+不要把真实 RPC 密钥、浏览器 API Key 或私钥直接写进 `foundry.toml`。提交 `.env.example` 记录变量名称，把真实 `.env` 排除在 Git 之外。
+
+---
+
+## 四、依赖管理与 remapping
+
+安装依赖：
+
+```bash
+forge install OpenZeppelin/openzeppelin-contracts
+forge install foundry-rs/forge-std
+```
+
+生产项目应固定 tag 或 commit，避免默认分支更新导致构建结果漂移：
+
+```bash
+forge install OpenZeppelin/openzeppelin-contracts@v5.4.0
+```
+
+查看自动推导的 import remapping：
+
+```bash
+forge remappings
+```
+
+典型导入：
+
+```solidity
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Test} from "forge-std/Test.sol";
+```
+
+可在 `remappings.txt` 或 `foundry.toml` 中显式配置：
+
+```toml
+remappings = [
+  "@openzeppelin/=lib/openzeppelin-contracts/",
+  "forge-std/=lib/forge-std/src/"
+]
+```
+
+更新、删除和检查依赖：
+
+```bash
+forge update
+forge update lib/openzeppelin-contracts
+forge remove openzeppelin-contracts
+forge tree
+forge tree --no-dedupe
+```
+
+Forge 默认常以 Git submodule 管理 `lib` 依赖。执行删除或批量更新前，先检查 `git status`；不要把他人的未提交改动误当成依赖生成内容清理掉。
+
+对于使用 Soldeer 的项目，可通过 `forge soldeer` 管理其依赖。它与 Git submodule 是不同的依赖工作流，应根据仓库既有约定选择，不要在同一依赖上混用。
+
+---
+
+## 五、编译：`build`、`clean` 与缓存
+
+完整编译：
+
+```bash
+forge build
+```
+
+Forge 会解析源码与依赖、选择或下载 solc、编译合约，并把 artifact 写入 `out`，缓存写入 `cache`。
+
+常用编译方式：
+
+```bash
+forge build --sizes
+forge build --force
+forge build --via-ir
+forge build --skip test --skip script
+```
+
+- `--sizes` 显示合约 runtime bytecode 大小，适合检查 EIP-170 限制
+- `--force` 忽略缓存重新编译
+- `--via-ir` 使用 Solidity IR pipeline，可能改变编译耗时、Gas 和 bytecode
+- `--skip` 排除指定路径或类型
+
+清理构建结果：
+
+```bash
+forge clean
+```
+
+检查或清理缓存可使用：
+
+```bash
+forge cache --help
+forge cache clean
+```
+
+不要把 `out`、`cache` 或广播临时文件当作源代码手工修改。部署和验证必须使用完全相同的 solc、优化器、EVM 版本、库链接与构造参数。
+
+---
+
+## 六、`forge test`：日常开发最高频命令
+
+运行全部测试：
+
+```bash
+forge test
+```
+
+常用日志等级：
+
+```bash
+forge test -vv
+forge test -vvv
+forge test -vvvv
+forge test -vvvvv
+```
+
+一般可理解为：
+
+- `-vv` 输出测试日志
+- `-vvv` 输出失败测试的调用轨迹
+- `-vvvv` 输出所有测试的轨迹，并增加 setup 信息
+- `-vvvvv` 输出最详细轨迹、存储变化和更多调试信息
+
+按测试名、合约名和路径过滤：
+
+```bash
+forge test --match-test test_Transfer
+forge test --match-contract TokenTest
+forge test --match-path "test/unit/*.t.sol"
+forge test --no-match-test testFork
+```
+
+过滤参数通常接受正则表达式。只运行一个精确测试时可以锚定：
+
+```bash
+forge test --match-test '^test_TransferUpdatesBalances$' -vvvv
+```
+
+持续监听文件：
+
+```bash
+forge test --watch
+```
+
+快速重跑上次失败测试时，先查看本机版本是否支持相关选项：
+
+```bash
+forge test --help
+```
+
+在 CI 中应运行完整测试集，不要因为本地过滤命令成功就认为项目全部通过。
+
+---
+
+## 七、编写 Solidity 单元测试
+
+典型测试文件：
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Test} from "forge-std/Test.sol";
+import {Counter} from "../src/Counter.sol";
+
+contract CounterTest is Test {
+    Counter internal counter;
+    address internal alice = makeAddr("alice");
+
+    function setUp() public {
+        counter = new Counter();
+        vm.deal(alice, 10 ether);
+    }
+
+    function test_IncrementUpdatesNumber() public {
+        counter.increment();
+        assertEq(counter.number(), 1);
+    }
+
+    function test_RevertWhen_Unauthorized() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        counter.adminOnlyAction();
+    }
+}
+```
+
+高频 cheatcodes 与应用：
+
+| Cheatcode | 用途 |
+| --- | --- |
+| `vm.prank` / `vm.startPrank` | 模拟调用者 |
+| `vm.deal` | 设置 ETH 或代币余额 |
+| `vm.warp` / `vm.roll` | 修改时间戳或区块高度 |
+| `vm.expectRevert` | 断言调用回滚及错误类型 |
+| `vm.expectEmit` | 断言事件 |
+| `vm.mockCall` | 模拟外部合约返回 |
+| `vm.load` / `vm.store` | 读取或修改存储槽 |
+| `vm.snapshotState` / `vm.revertToState` | 保存和恢复 EVM 状态 |
+| `vm.recordLogs` / `vm.getRecordedLogs` | 捕获和分析日志 |
+
+测试应验证状态、事件、权限、边界值和失败路径，而不仅是“函数没有 revert”。测试命名应描述行为，例如 `test_RevertWhen_AmountExceedsBalance`。
+
+---
+
+## 八、模糊测试与状态不变量测试
+
+只要测试函数带参数，Forge 就可以生成输入进行 fuzz：
+
+```solidity
+function testFuzz_Deposit(uint96 amount) public {
+    amount = uint96(bound(amount, 1, 1000 ether));
+
+    vm.deal(alice, amount);
+    vm.prank(alice);
+    vault.deposit{value: amount}();
+
+    assertEq(vault.balanceOf(alice), amount);
+}
+```
+
+运行单个 fuzz 测试：
+
+```bash
+forge test --match-test testFuzz_Deposit -vvv
+```
+
+优先使用 `bound` 把输入映射到有效区间；大量 `vm.assume` 会丢弃输入并降低测试效率。失败时 Forge 会尝试 shrink，输出更小的反例。
+
+状态不变量测试通过 handler 生成操作序列：
+
+```solidity
+function invariant_TotalAssetsCoverShares() public view {
+    assertGe(vault.totalAssets(), vault.totalSupply());
+}
+```
+
+配置运行次数和调用深度：
+
+```toml
+[profile.default.fuzz]
+runs = 256
+
+[profile.default.invariant]
+runs = 256
+depth = 100
+fail_on_revert = false
+```
+
+Fuzz 适合验证“任意输入”，invariant 适合验证“任意操作序列后始终成立”的系统属性。AMM、借贷、金库和权限状态机尤其适合 invariant 测试。
+
+---
+
+## 九、主网分叉测试与特殊环境
+
+使用 RPC 最新状态运行测试：
+
+```bash
+forge test --fork-url "$MAINNET_RPC_URL"
+```
+
+固定区块以获得可复现结果：
+
+```bash
+forge test \
+  --fork-url "$MAINNET_RPC_URL" \
+  --fork-block-number 19000000
+```
+
+使用 `foundry.toml` 别名时可以在 Solidity 中创建和切换 fork：
+
+```solidity
+uint256 fork = vm.createSelectFork("mainnet", 19_000_000);
+```
+
+典型场景：
+
+- 与真实 ERC-20、DEX、预言机和借贷协议集成测试
+- 在历史状态复现攻击或失败交易
+- 验证升级提案执行后的权限与资产变化
+- 检查目标协议在固定区块的流动性和配置
+
+始终固定关键测试的区块号。否则外部链状态变化会让昨天通过的测试今天失败。RPC 必须能提供对应历史状态；分叉测试也不代表真实主网交易一定成功，因为 mempool、MEV、Gas 和跨链消息等条件可能不同。
+
+---
+
+## 十、调试失败测试
+
+先增加 verbosity：
+
+```bash
+forge test --match-test test_Withdraw -vvvv
+```
+
+进入交互式调试器：
+
+```bash
+forge test --debug test_Withdraw
+```
+
+也可以使用独立的 debug 命令查看本机支持形式：
+
+```bash
+forge debug --help
+```
+
+排查建议顺序：
+
+1. 只筛选一个失败测试
+2. 查看第一次 revert，而不是最后一行连锁错误
+3. 检查 `msg.sender`、`msg.value`、时间、区块和 fork
+4. 解码 custom error 与调用参数
+5. 检查 storage diff 和事件
+6. 把 fuzz 反例转成固定回归测试
+
+测试中可使用 `console2.log` 临时输出变量，但最终断言不应依赖日志。删除无用调试输出，避免 CI 日志被噪声淹没。
+
+---
+
+## 十一、覆盖率、Gas 与快照
+
+生成覆盖率：
+
+```bash
+forge coverage
+forge coverage --report summary
+forge coverage --report lcov
+```
+
+覆盖率高不等于测试质量高。访问控制、舍入、重入、签名重放、价格操纵和极端状态仍需明确设计测试。
+
+输出 Gas report：
+
+```bash
+forge test --gas-report
+```
+
+生成 Gas 快照：
+
+```bash
+forge snapshot
+```
+
+检查当前结果是否与已提交快照一致：
+
+```bash
+forge snapshot --check
+```
+
+查看差异或为特定测试生成快照时，以版本帮助为准：
+
+```bash
+forge snapshot --help
+```
+
+Gas 快照适合防止无意性能退化，但不要为了降低一个数字而牺牲可读性或安全性。比较前必须保持编译器、优化器、EVM 版本、测试输入与 fork 区块一致。
+
+---
+
+## 十二、格式化、Lint、文档与静态检查
+
+格式化源码：
+
+```bash
+forge fmt
+forge fmt --check
+```
+
+运行 Forge linter：
+
+```bash
+forge lint
+```
+
+扫描潜在危险用法：
+
+```bash
+forge geiger
+```
+
+`geiger` 统计 assembly、低级调用、`tx.origin` 等潜在风险特征，它不是漏洞证明，也不能替代审计。
+
+从 NatSpec 生成项目文档：
+
+```bash
+forge doc
+forge doc --build
+forge doc --serve
+```
+
+常用本地质量门禁：
+
+```bash
+forge fmt --check
+forge lint
+forge build --sizes
+forge test
+forge snapshot --check
+```
+
+项目没有 Gas 快照时不要机械加入最后一条；CI 命令必须与仓库实际能力匹配。
+
+---
+
+## 十三、构建产物与合约分析
+
+`forge inspect` 可以读取编译器产物的某个字段：
+
+```bash
+forge inspect src/Counter.sol:Counter abi
+forge inspect src/Counter.sol:Counter bytecode
+forge inspect src/Counter.sol:Counter deployedBytecode
+forge inspect src/Counter.sol:Counter storage-layout
+forge inspect src/Counter.sol:Counter methodIdentifiers
+```
+
+这适合：
+
+- 向前端或脚本导出 ABI
+- 对比 creation bytecode 与 runtime bytecode
+- 审查代理升级前后的 storage layout
+- 获取函数 selector 映射
+- 检查 metadata、events 和 errors
+
+展平 Solidity 源码：
+
+```bash
+forge flatten src/Counter.sol
+forge flatten src/Counter.sol --output Counter.flattened.sol
+```
+
+Flatten 主要用于旧式验证或人工审阅；它可能产生 SPDX、pragma、符号冲突，不应替代标准 JSON 编译输入。
+
+其他分析和生成命令：
+
+```bash
+forge selectors list src/Counter.sol:Counter
+forge eip712
+forge bind
+forge compiler resolve src/Counter.sol
+```
+
+具体子命令结构会随版本变化，使用对应 `--help` 核对。
+
+---
+
+## 十四、Solidity 部署脚本
+
+典型脚本：
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Script} from "forge-std/Script.sol";
+import {Counter} from "../src/Counter.sol";
+
+contract DeployCounter is Script {
+    function run() external returns (Counter counter) {
+        vm.startBroadcast();
+        counter = new Counter();
+        vm.stopBroadcast();
+    }
+}
+```
+
+先模拟，不广播：
+
+```bash
+forge script script/DeployCounter.s.sol:DeployCounter \
+  --rpc-url "$SEPOLIA_RPC_URL"
+```
+
+确认模拟结果后再使用加密 keystore 广播：
+
+```bash
+cast wallet import deployer --interactive
+
+forge script script/DeployCounter.s.sol:DeployCounter \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --account deployer \
+  --broadcast
+```
+
+常用部署选项：
+
+- `--broadcast`：真实广播交易；没有它通常只模拟
+- `--account`：使用加密 keystore
+- `--ledger` / `--trezor`：硬件钱包签名
+- `--verify`：部署后尝试验证源码
+- `--resume`：从已有广播记录继续失败的脚本
+- `--slow`：按顺序发送并等待，适合 nonce 或 RPC 限制严格的网络
+- `--multi`：处理多链部署记录
+- `--sig`：选择脚本函数和参数
+
+带参数调用脚本函数：
+
+```bash
+forge script script/Deploy.s.sol:Deploy \
+  --sig "run(address,uint256)" "$ADMIN" 1000000 \
+  --rpc-url "$SEPOLIA_RPC_URL"
+```
+
+广播记录通常位于 `broadcast/`。它有助于恢复和审计部署，但可能包含交易详情；应按项目安全策略决定哪些文件提交 Git。
+
+---
+
+## 十五、`forge create` 快速部署
+
+部署单个合约时可以使用：
+
+```bash
+forge create src/Counter.sol:Counter \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --account deployer \
+  --broadcast
+```
+
+传入构造参数：
+
+```bash
+forge create src/Token.sol:Token \
+  --constructor-args "Demo Token" DMT 1000000 \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --account deployer \
+  --broadcast
+```
+
+`forge create` 适合一次性部署单个合约；涉及多个部署、初始化、权限转移、代理升级或跨链配置时，应使用可测试、可模拟、可恢复的 `forge script`。
+
+---
+
+## 十六、源码与 bytecode 验证
+
+验证已经部署的合约：
+
+```bash
+forge verify-contract \
+  "$CONTRACT_ADDRESS" \
+  src/Counter.sol:Counter \
+  --chain sepolia \
+  --etherscan-api-key "$ETHERSCAN_API_KEY" \
+  --watch
+```
+
+包含构造参数时先 ABI 编码：
+
+```bash
+ARGS=$(cast abi-encode \
+  "constructor(string,string,uint256)" \
+  "Demo Token" DMT 1000000)
+
+forge verify-contract \
+  "$TOKEN_ADDRESS" \
+  src/Token.sol:Token \
+  --chain sepolia \
+  --constructor-args "$ARGS" \
+  --etherscan-api-key "$ETHERSCAN_API_KEY" \
+  --watch
+```
+
+其他验证命令：
+
+```bash
+forge verify-check "$GUID" --chain sepolia
+forge verify-status "$GUID" --chain sepolia
+forge verify-bytecode "$CONTRACT_ADDRESS" src/Counter.sol:Counter
+```
+
+验证失败时依次核对：solc 精确版本、优化器开关与 runs、EVM 版本、via-IR、库地址、构造参数、合约路径和部署链。源码相同但编译设置不同，bytecode 也不会匹配。
+
+---
+
+## 十七、Forge 命令大全速查
+
+不同版本可能增减实验性命令，以下按用途归类主要命令。
+
+### 项目与配置
+
+| 命令 | 用途 |
+| --- | --- |
+| `init` | 创建或初始化 Foundry 项目 |
+| `config` | 显示最终生效配置 |
+| `remappings` | 输出 Solidity import remapping |
+| `completions` | 生成 Bash、Zsh、Fish、PowerShell 等补全脚本 |
+| `help` | 查看 Forge 或子命令帮助 |
+
+### 依赖管理
+
+| 命令 | 用途 |
+| --- | --- |
+| `install` | 安装 Git 依赖，支持 tag、branch 或 commit |
+| `update` | 更新全部或指定依赖 |
+| `remove` | 删除依赖并更新项目配置 |
+| `tree` | 显示依赖关系树 |
+| `soldeer` | 使用 Soldeer 工作流管理依赖 |
+
+### 编译、缓存与格式化
+
+| 命令 | 用途 |
+| --- | --- |
+| `build` | 编译项目并生成 artifacts |
+| `clean` | 删除构建 artifacts 与缓存 |
+| `cache` | 检查或清理 Forge 缓存 |
+| `compiler` | 解析源码所需的 Solidity 编译器版本 |
+| `fmt` | 格式化 Solidity 源码或检查格式 |
+| `flatten` | 展平 Solidity 文件与依赖 |
+
+### 测试与质量
+
+| 命令 | 用途 |
+| --- | --- |
+| `test` | 运行单元、fuzz、invariant 与 fork 测试 |
+| `coverage` | 生成测试覆盖率报告 |
+| `snapshot` | 生成、比较或检查 Gas 快照 |
+| `debug` | 调试测试或 EVM 执行 |
+| `lint` | 运行 Solidity linter |
+| `geiger` | 查找潜在危险的 Solidity 特性 |
+
+### 部署与验证
+
+| 命令 | 用途 |
+| --- | --- |
+| `script` | 模拟、广播和恢复 Solidity 部署脚本 |
+| `create` | 快速部署单个合约 |
+| `verify-contract` | 向区块浏览器提交源码验证 |
+| `verify-check` / `verify-status` | 查询验证任务状态 |
+| `verify-bytecode` | 比较链上 bytecode 与本地编译结果 |
+
+### 分析、生成与复现
+
+| 命令 | 用途 |
+| --- | --- |
+| `inspect` | 提取 ABI、bytecode、storage layout 等 artifact 字段 |
+| `selectors` | 列出 selector、检查冲突或处理签名数据 |
+| `doc` | 从 NatSpec 生成和托管文档 |
+| `bind` | 从合约 ABI 生成 Rust bindings |
+| `eip712` | 生成或分析 EIP-712 typed data 定义 |
+| `clone` | 获取链上已验证合约源码并建立本地项目 |
+| `generate` | 生成 Forge 支持的辅助代码或测试结构 |
+
+---
+
+## 十八、几个值得掌握的特殊用法
+
+### 使用 Profile 区分本地与 CI
+
+```bash
+FOUNDRY_PROFILE=ci forge test
+FOUNDRY_PROFILE=default forge test --match-test test_Transfer
+```
+
+本地 profile 可以少量运行 fuzz 获得快速反馈，CI profile 增加 runs 和 invariant depth。两者不能使用不同的安全断言。
+
+### 用 FFI 调用外部程序
+
+测试可通过 `vm.ffi` 调用外部命令，但必须显式启用：
+
+```bash
+forge test --ffi
+```
+
+FFI 能读取环境、执行程序和修改文件，只能用于可信测试代码。不要对来自陌生 PR 或依赖的测试开启 `--ffi`。
+
+### 文件系统权限
+
+需要在测试或脚本中读写文件时，在配置中授予最小权限：
+
+```toml
+fs_permissions = [
+  { access = "read", path = "./deployments" },
+  { access = "read-write", path = "./tmp" }
+]
+```
+
+不要对项目根目录或用户目录无条件开放写权限。
+
+### 验证代理升级存储兼容性
+
+```bash
+forge inspect src/VaultV1.sol:VaultV1 storage-layout > v1-layout.json
+forge inspect src/VaultV2.sol:VaultV2 storage-layout > v2-layout.json
+```
+
+对比布局只是第一步，还要检查继承顺序、gap、namespaced storage、初始化函数和实现合约锁定。
+
+### 测试确定性部署
+
+CREATE2 地址取决于 deployer、salt 和 init code hash，而 init code 又受编译设置及构造参数影响。固定 `foundry.toml` 后再生成 bytecode，并使用 Cast 交叉验证地址。
+
+---
+
+## 十九、推荐 Solidity 开发流程
+
+```text
+初始化项目
+  → 固定编译器与依赖
+  → 编写合约和单元测试
+  → fuzz / invariant / fork 测试
+  → fmt / lint / coverage / Gas 检查
+  → 部署脚本本地模拟
+  → 测试网广播与验收
+  → 主网硬件签名
+  → 源码验证与部署记录归档
+```
+
+日常开发命令可以保持简洁：
+
+```bash
+forge fmt
+forge build
+forge test
+forge test --gas-report
+```
+
+发布前再增加完整测试、固定区块 fork、覆盖率、Gas 快照、bytecode 大小、部署模拟和源码验证检查。
+
+---
+
+## 总结
+
+Forge 覆盖了 Solidity 工程的主要生命周期：
+
+1. `init`、`config` 建立可复现项目配置
+2. `install`、`remappings`、`tree` 管理依赖
+3. `build`、`inspect`、`clean` 管理编译与产物
+4. `test`、`coverage`、`snapshot` 构建质量门禁
+5. fuzz、invariant 和 fork 测试覆盖复杂协议状态
+6. `script`、`create` 完成模拟与部署
+7. `verify-contract`、`verify-bytecode` 核对链上结果
+
+真正重要的不是背下所有参数，而是让编译、测试、部署和验证使用同一组可追踪配置。任何广播操作都应先模拟，任何主网密钥都应使用加密 keystore、硬件钱包或受控签名服务。
+
+## 参考资料
+
+- [Foundry：Forge Overview](https://getfoundry.sh/forge/overview/)
+- [Foundry：Forge Reference](https://getfoundry.sh/reference/forge/)
+- [Foundry：Dependencies](https://getfoundry.sh/projects/dependencies/)
+- [Foundry：Forge Standard Library](https://getfoundry.sh/reference/forge-std/overview/)
+

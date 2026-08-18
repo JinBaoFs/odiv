@@ -16,6 +16,11 @@ const components: MDXComponents = {
   a: (props) => (
     <a {...props} target="_blank" rel="noopener noreferrer" />
   ),
+  table: (props) => (
+    <div className="mdx-table-wrapper">
+      <table {...props} />
+    </div>
+  ),
 }
 
 export function useMDXComponents(): MDXComponents {

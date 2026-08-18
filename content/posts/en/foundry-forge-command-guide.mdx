@@ -1,0 +1,880 @@
+export const metadata = {
+  title: "Foundry Forge Guide: Complete Commands and Solidity Workflows",
+  description:
+    "A practical guide to Foundry Forge projects, dependencies, compilation, testing, coverage, gas, deployment scripts, contract verification, and advanced Solidity workflows.",
+  date: "2025-09-16",
+  slug: "foundry-forge-command-guide",
+  lang: "en",
+  tags: ["foundry", "forge", "solidity", "ethereum", "web3", "testing"],
+  draft: false,
+}
+
+Forge is the core Foundry command-line program for the Solidity project lifecycle. It handles project initialization, dependencies, compilation, unit tests, fuzzing, invariant testing, mainnet-fork tests, gas analysis, deployment scripts, source verification, and artifact inspection.
+
+Within the Foundry workbench, Forge handles development and delivery, Cast handles on-chain queries and interaction, Anvil provides a local node, and Chisel provides an interactive Solidity environment. Most daily Solidity workflows begin with `forge`.
+
+> Forge commands and options evolve with Foundry releases. This guide describes the major command families and stable workflows; `forge --help` and `forge <command> --help` are authoritative for the installed version.
+
+---
+
+## 1. Installation check and help
+
+Confirm that Forge is available:
+
+```bash
+forge --version
+forge --help
+```
+
+Inspect every option for a subcommand:
+
+```bash
+forge test --help
+forge script --help
+forge verify-contract --help
+```
+
+Common global options include:
+
+- `-h, --help` prints help
+- `-V, --version` prints the version
+- `-j, --threads` controls parallelism
+- `-q, --quiet` reduces output
+- `-v` through `-vvvvv` progressively add logs, traces, and storage changes
+- `--root <PATH>` selects the project root
+- `--config-path <FILE>` selects a configuration file
+- `--profile <NAME>` selects a `foundry.toml` profile
+
+Run `--help` before using an unfamiliar command instead of copying old tutorial flags into a production deployment.
+
+---
+
+## 2. Initialize a project
+
+Create a project:
+
+```bash
+forge init hello_foundry
+cd hello_foundry
+```
+
+The default structure is usually:
+
+```text
+hello_foundry/
+├── foundry.toml
+├── lib/
+│   └── forge-std/
+├── script/
+│   └── Counter.s.sol
+├── src/
+│   └── Counter.sol
+└── test/
+    └── Counter.t.sol
+```
+
+Initialize an existing empty directory:
+
+```bash
+mkdir my_contracts
+cd my_contracts
+forge init .
+```
+
+Useful initialization options:
+
+```bash
+forge init my_contracts --no-git
+forge init my_contracts --force
+forge init my_contracts --empty
+```
+
+- `--no-git` avoids initializing a Git repository or submodules
+- `--force` permits a non-empty directory; verify that important files cannot be overwritten
+- `--empty` creates the basic structure without the Counter example
+
+After initialization, run:
+
+```bash
+forge build
+forge test
+```
+
+This confirms that compiler download, dependency resolution, and the test runner work.
+
+---
+
+## 3. Core `foundry.toml` configuration
+
+Forge reads `foundry.toml` from the project root:
+
+```toml
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+evm_version = "cancun"
+
+[profile.ci]
+fuzz = { runs = 1000 }
+invariant = { runs = 256, depth = 100 }
+
+[rpc_endpoints]
+mainnet = "${MAINNET_RPC_URL}"
+sepolia = "${SEPOLIA_RPC_URL}"
+```
+
+Inspect the merged effective configuration:
+
+```bash
+forge config
+forge config --json
+FOUNDRY_PROFILE=ci forge config
+```
+
+CLI flags normally override file configuration. Teams should pin Solidity, EVM, and optimizer settings because they affect bytecode, CREATE2 addresses, gas measurements, and source verification.
+
+Do not place real RPC secrets, explorer API keys, or private keys directly in `foundry.toml`. Commit `.env.example` to document variable names and exclude the real `.env` from Git.
+
+---
+
+## 4. Dependencies and remappings
+
+Install dependencies:
+
+```bash
+forge install OpenZeppelin/openzeppelin-contracts
+forge install foundry-rs/forge-std
+```
+
+Pin a tag or commit in production projects so a default branch update cannot change the build unexpectedly:
+
+```bash
+forge install OpenZeppelin/openzeppelin-contracts@v5.4.0
+```
+
+Print inferred import remappings:
+
+```bash
+forge remappings
+```
+
+Typical imports are:
+
+```solidity
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Test} from "forge-std/Test.sol";
+```
+
+Declare remappings explicitly in `remappings.txt` or `foundry.toml`:
+
+```toml
+remappings = [
+  "@openzeppelin/=lib/openzeppelin-contracts/",
+  "forge-std/=lib/forge-std/src/"
+]
+```
+
+Update, remove, and inspect dependencies:
+
+```bash
+forge update
+forge update lib/openzeppelin-contracts
+forge remove openzeppelin-contracts
+forge tree
+forge tree --no-dedupe
+```
+
+Forge commonly manages `lib` dependencies as Git submodules. Check `git status` before removal or bulk updates so user changes are not mistaken for generated dependency content.
+
+Projects using Soldeer can manage dependencies through `forge soldeer`. It is a separate workflow from Git submodules; follow the repository's existing convention instead of managing one package with both.
+
+---
+
+## 5. Compilation, cleaning, and cache
+
+Compile the project:
+
+```bash
+forge build
+```
+
+Forge resolves source and dependencies, selects or downloads solc, compiles contracts, writes artifacts to `out`, and writes incremental data to `cache`.
+
+Common build modes:
+
+```bash
+forge build --sizes
+forge build --force
+forge build --via-ir
+forge build --skip test --skip script
+```
+
+- `--sizes` displays runtime bytecode sizes for checking the EIP-170 limit
+- `--force` ignores incremental cache and recompiles
+- `--via-ir` enables the Solidity IR pipeline and may change time, gas, and bytecode
+- `--skip` excludes selected paths or categories
+
+Remove build output:
+
+```bash
+forge clean
+```
+
+Inspect or clean cache with:
+
+```bash
+forge cache --help
+forge cache clean
+```
+
+Do not edit `out`, `cache`, or temporary broadcast files as source. Deployment and verification must use identical solc, optimizer, EVM, library-linking, and constructor settings.
+
+---
+
+## 6. `forge test`: the everyday command
+
+Run all tests:
+
+```bash
+forge test
+```
+
+Useful verbosity levels:
+
+```bash
+forge test -vv
+forge test -vvv
+forge test -vvvv
+forge test -vvvvv
+```
+
+In general:
+
+- `-vv` prints test logs
+- `-vvv` prints traces for failing tests
+- `-vvvv` prints all test traces and more setup information
+- `-vvvvv` prints the most detailed traces, storage changes, and debugging data
+
+Filter by test, contract, or path:
+
+```bash
+forge test --match-test test_Transfer
+forge test --match-contract TokenTest
+forge test --match-path "test/unit/*.t.sol"
+forge test --no-match-test testFork
+```
+
+Filters generally accept regular expressions. Anchor an exact test name when needed:
+
+```bash
+forge test --match-test '^test_TransferUpdatesBalances$' -vvvv
+```
+
+Watch source files continuously:
+
+```bash
+forge test --watch
+```
+
+Inspect the installed version's help for failed-test rerun options:
+
+```bash
+forge test --help
+```
+
+CI should run the complete suite. A successful filtered local run does not mean every project test passed.
+
+---
+
+## 7. Write Solidity unit tests
+
+A typical test file looks like:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Test} from "forge-std/Test.sol";
+import {Counter} from "../src/Counter.sol";
+
+contract CounterTest is Test {
+    Counter internal counter;
+    address internal alice = makeAddr("alice");
+
+    function setUp() public {
+        counter = new Counter();
+        vm.deal(alice, 10 ether);
+    }
+
+    function test_IncrementUpdatesNumber() public {
+        counter.increment();
+        assertEq(counter.number(), 1);
+    }
+
+    function test_RevertWhen_Unauthorized() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        counter.adminOnlyAction();
+    }
+}
+```
+
+Frequently used cheatcodes include:
+
+| Cheatcode | Purpose |
+| --- | --- |
+| `vm.prank` / `vm.startPrank` | Simulate a caller |
+| `vm.deal` | Set ETH or token balances |
+| `vm.warp` / `vm.roll` | Change time or block height |
+| `vm.expectRevert` | Assert a revert and error type |
+| `vm.expectEmit` | Assert an event |
+| `vm.mockCall` | Mock an external contract response |
+| `vm.load` / `vm.store` | Read or modify a storage slot |
+| `vm.snapshotState` / `vm.revertToState` | Save and restore EVM state |
+| `vm.recordLogs` / `vm.getRecordedLogs` | Capture and inspect logs |
+
+Tests should verify state, events, permissions, boundary values, and failure paths—not merely that a function did not revert. Use behavior-oriented names such as `test_RevertWhen_AmountExceedsBalance`.
+
+---
+
+## 8. Fuzz and invariant testing
+
+A test function with arguments can receive generated fuzz inputs:
+
+```solidity
+function testFuzz_Deposit(uint96 amount) public {
+    amount = uint96(bound(amount, 1, 1000 ether));
+
+    vm.deal(alice, amount);
+    vm.prank(alice);
+    vault.deposit{value: amount}();
+
+    assertEq(vault.balanceOf(alice), amount);
+}
+```
+
+Run one fuzz test:
+
+```bash
+forge test --match-test testFuzz_Deposit -vvv
+```
+
+Prefer `bound` for mapping values into a valid range. Excessive `vm.assume` discards inputs and reduces efficiency. On failure, Forge shrinks the generated input toward a smaller counterexample.
+
+Invariant tests generate operation sequences through handlers:
+
+```solidity
+function invariant_TotalAssetsCoverShares() public view {
+    assertGe(vault.totalAssets(), vault.totalSupply());
+}
+```
+
+Configure fuzz runs and invariant depth:
+
+```toml
+[profile.default.fuzz]
+runs = 256
+
+[profile.default.invariant]
+runs = 256
+depth = 100
+fail_on_revert = false
+```
+
+Fuzz tests exercise arbitrary inputs; invariants exercise properties that must remain true after arbitrary operation sequences. AMMs, lending protocols, vaults, and permission state machines benefit greatly from invariant testing.
+
+---
+
+## 9. Mainnet-fork tests
+
+Run tests against the latest RPC state:
+
+```bash
+forge test --fork-url "$MAINNET_RPC_URL"
+```
+
+Pin a block for reproducibility:
+
+```bash
+forge test \
+  --fork-url "$MAINNET_RPC_URL" \
+  --fork-block-number 19000000
+```
+
+With a `foundry.toml` endpoint alias, Solidity can create and select a fork:
+
+```solidity
+uint256 fork = vm.createSelectFork("mainnet", 19_000_000);
+```
+
+Common scenarios include:
+
+- Integration tests with real tokens, DEXes, oracles, and lending protocols
+- Reproduction of an exploit or failed transaction at historical state
+- Verification of permissions and asset movement after an upgrade proposal
+- Inspection of target-protocol liquidity and configuration at a fixed block
+
+Pin the block for every important fork test. Otherwise external state can make yesterday's passing test fail today. The RPC must retain the requested historical state, and a fork cannot reproduce every mainnet condition such as mempool ordering, MEV, gas markets, or cross-chain delivery.
+
+---
+
+## 10. Debug failed tests
+
+Increase verbosity first:
+
+```bash
+forge test --match-test test_Withdraw -vvvv
+```
+
+Open the interactive debugger:
+
+```bash
+forge test --debug test_Withdraw
+```
+
+Inspect the standalone debug command supported by the installed version:
+
+```bash
+forge debug --help
+```
+
+A useful debugging order is:
+
+1. Isolate one failing test
+2. Find the first revert rather than the final cascading error
+3. Inspect `msg.sender`, `msg.value`, time, block, and fork
+4. Decode custom errors and arguments
+5. Inspect storage changes and events
+6. Convert a fuzz counterexample into a fixed regression test
+
+Use `console2.log` for temporary inspection, but never make correctness depend on log output. Remove obsolete logs so CI remains readable.
+
+---
+
+## 11. Coverage, gas reports, and snapshots
+
+Generate coverage:
+
+```bash
+forge coverage
+forge coverage --report summary
+forge coverage --report lcov
+```
+
+High line coverage does not prove test quality. Access control, rounding, reentrancy, signature replay, price manipulation, and extreme states still need deliberately designed cases.
+
+Print a gas report:
+
+```bash
+forge test --gas-report
+```
+
+Create a gas snapshot:
+
+```bash
+forge snapshot
+```
+
+Check the current result against the committed snapshot:
+
+```bash
+forge snapshot --check
+```
+
+For diff and test-filter options, inspect:
+
+```bash
+forge snapshot --help
+```
+
+Snapshots catch accidental performance regressions, but a smaller number is not worth sacrificing clarity or safety. Compare only with identical compiler, optimizer, EVM, test input, and fork-block settings.
+
+---
+
+## 12. Formatting, linting, docs, and static signals
+
+Format Solidity:
+
+```bash
+forge fmt
+forge fmt --check
+```
+
+Run the Forge linter:
+
+```bash
+forge lint
+```
+
+Scan for potentially dangerous constructs:
+
+```bash
+forge geiger
+```
+
+`geiger` counts features such as assembly, low-level calls, and `tx.origin`. A finding is not proof of a vulnerability, and a clean report is not a security audit.
+
+Generate documentation from NatSpec:
+
+```bash
+forge doc
+forge doc --build
+forge doc --serve
+```
+
+A useful local quality gate is:
+
+```bash
+forge fmt --check
+forge lint
+forge build --sizes
+forge test
+forge snapshot --check
+```
+
+Do not add the last command mechanically if the project has no gas snapshot. CI commands must match actual repository capabilities.
+
+---
+
+## 13. Artifacts and contract analysis
+
+`forge inspect` extracts fields from compiler artifacts:
+
+```bash
+forge inspect src/Counter.sol:Counter abi
+forge inspect src/Counter.sol:Counter bytecode
+forge inspect src/Counter.sol:Counter deployedBytecode
+forge inspect src/Counter.sol:Counter storage-layout
+forge inspect src/Counter.sol:Counter methodIdentifiers
+```
+
+This is useful for:
+
+- Exporting an ABI to a frontend or script
+- Comparing creation bytecode and runtime bytecode
+- Reviewing storage layout before a proxy upgrade
+- Extracting function selectors
+- Inspecting metadata, events, and errors
+
+Flatten Solidity source:
+
+```bash
+forge flatten src/Counter.sol
+forge flatten src/Counter.sol --output Counter.flattened.sol
+```
+
+Flattening mainly supports legacy verification or human review. It can introduce SPDX, pragma, and symbol conflicts and should not replace standard JSON compiler input.
+
+Other analysis and generation commands include:
+
+```bash
+forge selectors list src/Counter.sol:Counter
+forge eip712
+forge bind
+forge compiler resolve src/Counter.sol
+```
+
+Subcommand structure can vary by release; verify each with `--help`.
+
+---
+
+## 14. Solidity deployment scripts
+
+A typical script is:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Script} from "forge-std/Script.sol";
+import {Counter} from "../src/Counter.sol";
+
+contract DeployCounter is Script {
+    function run() external returns (Counter counter) {
+        vm.startBroadcast();
+        counter = new Counter();
+        vm.stopBroadcast();
+    }
+}
+```
+
+Simulate first without broadcasting:
+
+```bash
+forge script script/DeployCounter.s.sol:DeployCounter \
+  --rpc-url "$SEPOLIA_RPC_URL"
+```
+
+After reviewing the simulation, broadcast through an encrypted keystore:
+
+```bash
+cast wallet import deployer --interactive
+
+forge script script/DeployCounter.s.sol:DeployCounter \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --account deployer \
+  --broadcast
+```
+
+Common deployment options include:
+
+- `--broadcast` sends real transactions; without it, execution is normally simulated
+- `--account` uses an encrypted keystore
+- `--ledger` / `--trezor` uses a hardware wallet
+- `--verify` attempts source verification after deployment
+- `--resume` continues an interrupted script from broadcast records
+- `--slow` sends sequentially and waits, useful with strict nonce or RPC limits
+- `--multi` handles multi-chain deployment records
+- `--sig` selects a script function and arguments
+
+Call a parameterized script function:
+
+```bash
+forge script script/Deploy.s.sol:Deploy \
+  --sig "run(address,uint256)" "$ADMIN" 1000000 \
+  --rpc-url "$SEPOLIA_RPC_URL"
+```
+
+Broadcast records usually live under `broadcast/`. They help recovery and auditing but contain transaction details; decide which files belong in Git according to project security policy.
+
+---
+
+## 15. Quick deployment with `forge create`
+
+Deploy a single contract:
+
+```bash
+forge create src/Counter.sol:Counter \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --account deployer \
+  --broadcast
+```
+
+Pass constructor arguments:
+
+```bash
+forge create src/Token.sol:Token \
+  --constructor-args "Demo Token" DMT 1000000 \
+  --rpc-url "$SEPOLIA_RPC_URL" \
+  --account deployer \
+  --broadcast
+```
+
+`forge create` is convenient for one contract. Use a testable, simulatable, resumable `forge script` for multi-contract deployment, initialization, ownership transfer, proxy upgrades, or cross-chain configuration.
+
+---
+
+## 16. Source and bytecode verification
+
+Verify a deployed contract:
+
+```bash
+forge verify-contract \
+  "$CONTRACT_ADDRESS" \
+  src/Counter.sol:Counter \
+  --chain sepolia \
+  --etherscan-api-key "$ETHERSCAN_API_KEY" \
+  --watch
+```
+
+ABI-encode constructor arguments when necessary:
+
+```bash
+ARGS=$(cast abi-encode \
+  "constructor(string,string,uint256)" \
+  "Demo Token" DMT 1000000)
+
+forge verify-contract \
+  "$TOKEN_ADDRESS" \
+  src/Token.sol:Token \
+  --chain sepolia \
+  --constructor-args "$ARGS" \
+  --etherscan-api-key "$ETHERSCAN_API_KEY" \
+  --watch
+```
+
+Other verification commands include:
+
+```bash
+forge verify-check "$GUID" --chain sepolia
+forge verify-status "$GUID" --chain sepolia
+forge verify-bytecode "$CONTRACT_ADDRESS" src/Counter.sol:Counter
+```
+
+When verification fails, check the exact solc version, optimizer and runs, EVM version, via-IR setting, linked libraries, constructor arguments, contract path, and deployment chain. Identical source with different compilation settings does not produce matching bytecode.
+
+---
+
+## 17. Complete Forge command map
+
+Experimental commands may differ between releases. The tables group the main command families by purpose.
+
+### Project and configuration
+
+| Command | Purpose |
+| --- | --- |
+| `init` | Create or initialize a Foundry project |
+| `config` | Display the effective merged configuration |
+| `remappings` | Print Solidity import remappings |
+| `completions` | Generate Bash, Zsh, Fish, or PowerShell completions |
+| `help` | Print Forge or subcommand help |
+
+### Dependency management
+
+| Command | Purpose |
+| --- | --- |
+| `install` | Install Git dependencies at a tag, branch, or commit |
+| `update` | Update all or selected dependencies |
+| `remove` | Remove dependencies and update project configuration |
+| `tree` | Display the dependency graph |
+| `soldeer` | Manage dependencies through the Soldeer workflow |
+
+### Compilation, cache, and formatting
+
+| Command | Purpose |
+| --- | --- |
+| `build` | Compile the project and generate artifacts |
+| `clean` | Remove build artifacts and cache |
+| `cache` | Inspect or clean Forge cache |
+| `compiler` | Resolve Solidity compiler versions required by sources |
+| `fmt` | Format Solidity or check formatting |
+| `flatten` | Flatten a Solidity file and its dependencies |
+
+### Testing and quality
+
+| Command | Purpose |
+| --- | --- |
+| `test` | Run unit, fuzz, invariant, and fork tests |
+| `coverage` | Generate test coverage reports |
+| `snapshot` | Generate, compare, or check gas snapshots |
+| `debug` | Debug a test or EVM execution |
+| `lint` | Run the Solidity linter |
+| `geiger` | Find potentially dangerous Solidity features |
+
+### Deployment and verification
+
+| Command | Purpose |
+| --- | --- |
+| `script` | Simulate, broadcast, and resume Solidity scripts |
+| `create` | Quickly deploy one contract |
+| `verify-contract` | Submit source verification to a block explorer |
+| `verify-check` / `verify-status` | Query a verification request |
+| `verify-bytecode` | Compare on-chain bytecode with local compilation |
+
+### Analysis, generation, and reproduction
+
+| Command | Purpose |
+| --- | --- |
+| `inspect` | Extract ABI, bytecode, storage layout, and other artifact fields |
+| `selectors` | List selectors, detect collisions, or process signature data |
+| `doc` | Generate and serve NatSpec documentation |
+| `bind` | Generate Rust bindings from contract ABIs |
+| `eip712` | Generate or analyze EIP-712 typed-data definitions |
+| `clone` | Retrieve verified on-chain source into a local project |
+| `generate` | Generate supported helper code or test structures |
+
+---
+
+## 18. Advanced patterns worth learning
+
+### Separate local and CI profiles
+
+```bash
+FOUNDRY_PROFILE=ci forge test
+FOUNDRY_PROFILE=default forge test --match-test test_Transfer
+```
+
+A local profile can use fewer fuzz runs for rapid feedback, while CI increases runs and invariant depth. The profiles must not use different correctness assertions.
+
+### Call external programs with FFI
+
+Tests can invoke external commands through `vm.ffi`, but it must be explicitly enabled:
+
+```bash
+forge test --ffi
+```
+
+FFI can read the environment, execute programs, and modify files. Enable it only for trusted tests; never enable `--ffi` for unknown pull-request or dependency code.
+
+### Limit filesystem permissions
+
+Grant only the file access a test or script needs:
+
+```toml
+fs_permissions = [
+  { access = "read", path = "./deployments" },
+  { access = "read-write", path = "./tmp" }
+]
+```
+
+Do not grant unconditional write access to the repository root or user directory.
+
+### Check proxy-upgrade storage compatibility
+
+```bash
+forge inspect src/VaultV1.sol:VaultV1 storage-layout > v1-layout.json
+forge inspect src/VaultV2.sol:VaultV2 storage-layout > v2-layout.json
+```
+
+Layout comparison is only the first step. Also review inheritance order, gaps, namespaced storage, initializer behavior, and implementation locking.
+
+### Test deterministic deployment
+
+A CREATE2 address depends on deployer, salt, and init-code hash. Init code itself depends on compiler settings and constructor arguments. Pin `foundry.toml`, generate bytecode, and cross-check the address with Cast.
+
+---
+
+## 19. Recommended Solidity workflow
+
+```text
+Initialize project
+  → pin compiler and dependencies
+  → write contracts and unit tests
+  → fuzz / invariant / fork tests
+  → fmt / lint / coverage / gas checks
+  → simulate deployment scripts locally
+  → broadcast and verify on testnet
+  → sign mainnet deployment with hardware wallet
+  → verify source and archive deployment records
+```
+
+Daily commands can stay concise:
+
+```bash
+forge fmt
+forge build
+forge test
+forge test --gas-report
+```
+
+Before release, add the complete suite, pinned-block fork tests, coverage, gas snapshot, bytecode size, deployment simulation, and verification checks.
+
+---
+
+## Summary
+
+Forge covers the major Solidity engineering lifecycle:
+
+1. `init` and `config` establish reproducible project settings
+2. `install`, `remappings`, and `tree` manage dependencies
+3. `build`, `inspect`, and `clean` manage compilation and artifacts
+4. `test`, `coverage`, and `snapshot` create quality gates
+5. Fuzz, invariant, and fork tests exercise complex protocol state
+6. `script` and `create` simulate and deploy contracts
+7. `verify-contract` and `verify-bytecode` validate on-chain results
+
+The important skill is not memorizing every flag; it is making compilation, testing, deployment, and verification use the same traceable configuration. Simulate every broadcast first, and protect mainnet keys with encrypted keystores, hardware wallets, or controlled signing services.
+
+## References
+
+- [Foundry: Forge Overview](https://getfoundry.sh/forge/overview/)
+- [Foundry: Forge Reference](https://getfoundry.sh/reference/forge/)
+- [Foundry: Dependencies](https://getfoundry.sh/projects/dependencies/)
+- [Foundry: Forge Standard Library](https://getfoundry.sh/reference/forge-std/overview/)
+

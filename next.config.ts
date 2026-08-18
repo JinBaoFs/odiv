@@ -2,6 +2,7 @@
 import type { NextConfig } from "next"
 import createMDX from "@next/mdx"
 import rehypeHighlight from "rehype-highlight"
+import remarkGfm from "remark-gfm"
 import createNextIntlPlugin from "next-intl/plugin"
 
 // next-intl 插件
@@ -11,7 +12,7 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts")
 const withMDX = createMDX({
   extension: /\.mdx?$/,
   options: {
-    remarkPlugins: [],
+    remarkPlugins: [remarkGfm],
     rehypePlugins: [rehypeHighlight],
   },
 })
