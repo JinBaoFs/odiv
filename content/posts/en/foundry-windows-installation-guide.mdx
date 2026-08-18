@@ -1,0 +1,367 @@
+export const metadata = {
+  title: "How to Install Foundry on Windows with WSL 2",
+  description:
+    "Install Foundry on Windows with WSL 2 and Ubuntu, verify Forge, Cast, Anvil, and Chisel, and build and test your first Solidity project.",
+  date: "2025-09-14",
+  slug: "foundry-windows-installation-guide",
+  lang: "en",
+  tags: ["foundry", "solidity", "ethereum", "windows", "wsl", "web3"],
+  draft: false,
+}
+
+Foundry is a Rust-based toolkit for Ethereum smart contract development. It provides four command-line programs for the most common Solidity workflows:
+
+- **Forge** creates, compiles, tests, deploys, and verifies smart contracts
+- **Cast** reads on-chain data, sends transactions, and encodes or decodes ABI data
+- **Anvil** runs a local Ethereum development node
+- **Chisel** is an interactive Solidity REPL for quickly evaluating code
+
+Foundry is primarily designed for Unix-like shells. On Windows, the most reliable setup—and the one most similar to a Linux deployment environment—is **WSL 2 (Windows Subsystem for Linux 2)**. This guide uses Windows 11 or Windows 10 with WSL 2 and Ubuntu. After setup, all Foundry commands run inside the Ubuntu terminal.
+
+> Foundry is a development toolkit, not a wallet. Example private keys and Anvil accounts are for local development only and must never hold real assets.
+
+---
+
+## 1. Check the prerequisites
+
+Before starting, make sure that:
+
+1. The computer runs Windows 11 or Windows 10 version 2004 (Build 19041) or later
+2. Your Windows account has administrator access
+3. CPU virtualization is enabled in BIOS or UEFI
+4. The network can reach Microsoft, GitHub, and the official Foundry website
+5. Several gigabytes of disk space are available for WSL, Ubuntu, dependencies, and projects
+
+Press `Win + R`, enter `winver`, and check the Windows version. You can also open Task Manager and look under Performance → CPU to confirm that Virtualization is enabled.
+
+If a managed company computer blocks Microsoft Store, virtualization, or administrator PowerShell access, contact its administrator first. Do not download Foundry executables from an unknown mirror.
+
+---
+
+## 2. Install WSL 2 and Ubuntu
+
+Open PowerShell as Administrator: search for PowerShell in the Start menu, right-click it, and select **Run as administrator**. Run:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+This command enables WSL and the Virtual Machine Platform, then installs Ubuntu. Restart Windows when prompted.
+
+After the restart, open Ubuntu from the Start menu. Its first launch extracts the filesystem and asks you to create a Linux username and password:
+
+```text
+Enter new UNIX username: yourname
+New password:
+Retype new password:
+```
+
+Linux does not display characters or asterisks while you type a password. The Ubuntu account is separate from your Windows account.
+
+Return to PowerShell and verify that Ubuntu uses WSL 2:
+
+```powershell
+wsl --list --verbose
+```
+
+The result should look similar to this:
+
+```text
+  NAME      STATE           VERSION
+* Ubuntu   Running         2
+```
+
+If the `VERSION` column says `1`, convert the distribution:
+
+```powershell
+wsl --set-version Ubuntu 2
+```
+
+If WSL is already installed but Ubuntu is missing, list and install available distributions:
+
+```powershell
+wsl --list --online
+wsl --install -d Ubuntu
+```
+
+After this section, run every command in the **Ubuntu terminal** unless its code block is explicitly marked `powershell`.
+
+---
+
+## 3. Update Ubuntu and install dependencies
+
+Open Ubuntu and update its package index and installed packages:
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+```
+
+Install the download tools, Git, certificates, and common build dependencies:
+
+```bash
+sudo apt install -y curl git ca-certificates build-essential
+```
+
+Verify the essential commands:
+
+```bash
+curl --version
+git --version
+```
+
+`sudo` asks for the Ubuntu password created earlier. If package downloads fail, check the Windows network, system clock, and proxy configuration before changing anything. Do not disable TLS certificate verification.
+
+---
+
+## 4. Install Foundryup and Foundry
+
+Foundryup is the official installer and version manager for the Foundry toolchain. Run the official installation script:
+
+```bash
+curl -L https://getfoundry.sh/install | bash
+```
+
+The script installs `foundryup` in your user directory and updates the shell configuration so that Foundry's `bin` directory is on `PATH`. Load the new configuration in the current terminal:
+
+```bash
+source ~/.bashrc
+```
+
+Install the latest stable Foundry toolchain:
+
+```bash
+foundryup
+```
+
+Foundryup downloads and verifies the precompiled programs for the current platform: `forge`, `cast`, `anvil`, and `chisel`. The normal precompiled installation does not require a separate Rust installation.
+
+If `foundryup` reports `command not found`, close and reopen Ubuntu. If it still fails, inspect the path and installation directory:
+
+```bash
+echo "$PATH"
+ls -la ~/.foundry/bin
+```
+
+You can add the directory to the current session temporarily:
+
+```bash
+export PATH="$HOME/.foundry/bin:$PATH"
+```
+
+Run `foundryup` again. Do not use `sudo foundryup`; that can install files under the root account and create confusing permission problems.
+
+---
+
+## 5. Verify all four tools
+
+Print the version of each program:
+
+```bash
+forge --version
+cast --version
+anvil --version
+chisel --version
+```
+
+If all four commands print version information, Foundry is available on `PATH`. Confirm the executable locations if needed:
+
+```bash
+which forge
+which cast
+which anvil
+which chisel
+```
+
+The default directory is usually:
+
+```text
+/home/<your Ubuntu username>/.foundry/bin/
+```
+
+Each component can run independently, but a normal workflow combines them: Anvil provides a local chain, Forge compiles and tests contracts, and Cast interacts with the node.
+
+---
+
+## 6. Create and test the first Foundry project
+
+Keep projects in the WSL Linux filesystem, such as `~/code`, instead of `/mnt/c`. Compilation and dependency operations involving many small files are generally faster there, and Linux permissions behave more consistently.
+
+```bash
+mkdir -p ~/code
+cd ~/code
+forge init hello_foundry
+cd hello_foundry
+```
+
+`forge init` creates a structure similar to this:
+
+```text
+hello_foundry/
+├── foundry.toml
+├── lib/
+├── script/
+├── src/
+│   └── Counter.sol
+└── test/
+    └── Counter.t.sol
+```
+
+The main paths are:
+
+- `foundry.toml` for project configuration
+- `src` for Solidity contracts
+- `test` for Solidity tests
+- `script` for deployment and interaction scripts
+- `lib` for dependencies installed as Git submodules
+
+Compile the project:
+
+```bash
+forge build
+```
+
+Run its tests:
+
+```bash
+forge test
+```
+
+The output should contain `Suite result: ok`. Increase verbosity when a test needs a call trace:
+
+```bash
+forge test -vvv
+```
+
+At this point, WSL, the Solidity compiler download, project initialization, compilation, and testing all work end to end.
+
+---
+
+## 7. Start a local Anvil node
+
+Open another Ubuntu terminal in the project directory and run:
+
+```bash
+anvil
+```
+
+By default, Anvil:
+
+- Starts a JSON-RPC server at `http://127.0.0.1:8545`
+- Creates a set of prefunded local test accounts
+- Displays their addresses and private keys
+- Uses local development chain ID `31337`
+
+Leave that terminal running. Open a second Ubuntu terminal and use Cast to query the latest block number:
+
+```bash
+cast block-number --rpc-url http://127.0.0.1:8545
+```
+
+A result of `0` or greater confirms that Cast can reach Anvil. Query the chain ID as another check:
+
+```bash
+cast chain-id --rpc-url http://127.0.0.1:8545
+```
+
+Press `Ctrl + C` to stop Anvil. The accounts and private keys printed by Anvil are public test data for that local node only. Never send mainnet assets to those addresses or reuse those keys on a real network or in production configuration.
+
+---
+
+## 8. Edit a WSL project from Windows
+
+Enter this path in the Windows File Explorer address bar:
+
+```text
+\\wsl$\Ubuntu\home\<your Ubuntu username>\code\hello_foundry
+```
+
+It opens the project stored in WSL. For VS Code, install Microsoft's WSL extension, then run this command from the Ubuntu project directory:
+
+```bash
+code .
+```
+
+The bottom-left corner of VS Code should show a WSL connection. The terminal, Git, Foundry, and editor extensions now run in the same Linux environment, avoiding Windows-versus-WSL command and path differences.
+
+If the `code` command is unavailable, install VS Code and its WSL extension on Windows, then run `WSL: Connect to WSL` from the VS Code Command Palette.
+
+---
+
+## 9. Update and manage versions
+
+Update to the latest stable version:
+
+```bash
+foundryup
+```
+
+Install a nightly build:
+
+```bash
+foundryup --install nightly
+```
+
+Nightly builds provide new features sooner but are more likely to introduce incompatible changes. Team projects should pin and document a tested Foundry version, then use the same version locally and in CI. To see supported version, branch, and commit options, run:
+
+```bash
+foundryup --help
+```
+
+After an update, run the project tests again:
+
+```bash
+forge test
+```
+
+The existence of an automatic updater is not a reason to move production work to the newest nightly without testing it.
+
+---
+
+## 10. Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| `wsl` is not recognized | Windows is too old or WSL is not installed | Update Windows and rerun `wsl --install` as Administrator |
+| WSL requires virtualization | Virtualization is disabled in BIOS/UEFI | Enable Intel VT-x or AMD-V and try again |
+| Ubuntu installation stays at `0.0%` | Store or download channel is restricted | Run `wsl --install --web-download -d Ubuntu` in Administrator PowerShell |
+| `foundryup: command not found` | The current shell has not reloaded `PATH` | Run `source ~/.bashrc` or restart Ubuntu |
+| `forge: command not found` | Foundryup exists, but the toolchain is not installed | Run `foundryup` and inspect `~/.foundry/bin` |
+| The installation script cannot download | Network, proxy, DNS, or certificate problem | Check connectivity and system time; do not use an untrusted script mirror |
+| `forge init` cannot fetch dependencies | Git is missing or GitHub is unreachable | Check `git --version` and the GitHub connection |
+| Compilation is slow under `/mnt/c` | Cross-filesystem I/O overhead | Move the project to a Linux path such as `~/code` |
+| A command works in PowerShell but not Ubuntu | Windows and WSL have separate environments and `PATH` values | Install and run Foundry entirely inside Ubuntu/WSL |
+| Anvil cannot use port 8545 | Another node or program is listening on it | Stop the conflicting process or run `anvil --port 8546` |
+
+Useful PowerShell commands for inspecting, updating, and restarting WSL are:
+
+```powershell
+wsl --status
+wsl --update
+wsl --shutdown
+```
+
+`wsl --shutdown` stops every WSL distribution. It can reset an unhealthy WSL session, but it also terminates Anvil and every other running WSL process.
+
+---
+
+## Summary
+
+The recommended Foundry setup on Windows has six steps:
+
+1. Install WSL 2 and Ubuntu from Administrator PowerShell
+2. Install `curl`, Git, and other basic dependencies in Ubuntu
+3. Run Foundry's official script to install Foundryup
+4. Use `foundryup` to install Forge, Cast, Anvil, and Chisel
+5. Verify the project workflow with `forge init`, `forge build`, and `forge test`
+6. Start Anvil and use Cast to test the local RPC connection
+
+For daily development, keep source code in the WSL Linux filesystem and connect the editor through WSL. This keeps commands, paths, permissions, and compilation behavior consistent.
+
+## References
+
+- [Foundry official website](https://getfoundry.sh/)
+- [Foundry installation documentation](https://getfoundry.sh/introduction/installation/)
+- [Microsoft: Install Linux with WSL](https://learn.microsoft.com/windows/wsl/install)
+- [Microsoft: Set up a WSL development environment](https://learn.microsoft.com/windows/wsl/setup/environment)
+

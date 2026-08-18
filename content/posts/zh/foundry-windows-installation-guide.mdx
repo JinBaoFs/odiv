@@ -1,0 +1,367 @@
+export const metadata = {
+  title: "Foundry Windows 安装教程：使用 WSL 2 搭建 Solidity 开发环境",
+  description:
+    "从 WSL 2、Ubuntu 和基础依赖开始，在 Windows 上安装 Foundry，并通过 Forge、Cast、Anvil 与 Chisel 完成验证和第一个 Solidity 项目。",
+  date: "2025-09-14",
+  slug: "foundry-windows-installation-guide",
+  lang: "zh",
+  tags: ["foundry", "solidity", "ethereum", "windows", "wsl", "web3"],
+  draft: false,
+}
+
+Foundry 是一套使用 Rust 编写的 Ethereum 智能合约开发工具。它把常见的 Solidity 开发能力拆分为四个命令行程序：
+
+- **Forge**：创建、编译、测试、部署和验证智能合约
+- **Cast**：读取链上数据、发送交易和进行 ABI 编解码
+- **Anvil**：在本地启动一个 Ethereum 开发节点
+- **Chisel**：交互式 Solidity REPL，适合快速验证代码片段
+
+Foundry 的主要使用环境是类 Unix Shell。在 Windows 上，最稳定、也最接近 Linux 部署环境的方式是通过 **WSL 2（Windows Subsystem for Linux 2）** 安装。本文使用 Windows 11/Windows 10 + WSL 2 + Ubuntu；安装完成后，Foundry 的所有命令都在 Ubuntu 终端中执行。
+
+> 本文安装的是智能合约开发工具，不是钱包。示例私钥和 Anvil 测试账户只能用于本地开发，绝不能保存真实资产。
+
+---
+
+## 一、安装前准备
+
+开始前请确认：
+
+1. 系统为 Windows 11，或 Windows 10 2004（Build 19041）及以上版本
+2. 当前 Windows 账户拥有管理员权限
+3. BIOS/UEFI 已启用 CPU 虚拟化
+4. 网络可以访问 Microsoft、GitHub 和 Foundry 官方站点
+5. 磁盘至少预留数 GB 空间给 WSL、Ubuntu、依赖和项目
+
+按 `Win + R`，输入 `winver` 可以查看 Windows 版本。也可以在任务管理器的“性能 → CPU”中确认“虚拟化”是否为“已启用”。
+
+如果公司设备限制了 Microsoft Store、虚拟化或 PowerShell 管理员权限，请先联系管理员。不要从不明镜像站下载 Foundry 可执行文件。
+
+---
+
+## 二、安装 WSL 2 和 Ubuntu
+
+以管理员身份打开 PowerShell：在开始菜单搜索“PowerShell”，右键选择“以管理员身份运行”。执行：
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+该命令会启用 WSL 和虚拟机平台组件，并安装 Ubuntu。命令完成后按提示重启 Windows。
+
+重启后，从开始菜单打开 Ubuntu。第一次启动需要解压文件，并要求创建 Linux 用户名和密码：
+
+```text
+Enter new UNIX username: yourname
+New password:
+Retype new password:
+```
+
+输入密码时终端不会显示字符或星号，这是 Linux 的正常行为。这里创建的是 Ubuntu 用户，与 Windows 账户相互独立。
+
+回到 PowerShell，检查 Ubuntu 是否运行在 WSL 2：
+
+```powershell
+wsl --list --verbose
+```
+
+预期可以看到类似结果：
+
+```text
+  NAME      STATE           VERSION
+* Ubuntu   Running         2
+```
+
+如果 `VERSION` 是 `1`，执行：
+
+```powershell
+wsl --set-version Ubuntu 2
+```
+
+如果已经安装 WSL，但没有 Ubuntu，可先查看可用发行版再安装：
+
+```powershell
+wsl --list --online
+wsl --install -d Ubuntu
+```
+
+从这一节结束后，除非命令块明确标注为 `powershell`，其余命令都应在 **Ubuntu 终端** 中执行。
+
+---
+
+## 三、更新 Ubuntu 并安装基础依赖
+
+打开 Ubuntu，先更新软件索引和已安装软件：
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+```
+
+再安装下载工具、Git、证书和常用编译依赖：
+
+```bash
+sudo apt install -y curl git ca-certificates build-essential
+```
+
+检查关键命令是否可用：
+
+```bash
+curl --version
+git --version
+```
+
+`sudo` 会要求输入刚才创建的 Ubuntu 用户密码。软件包下载失败时，先检查 Windows 网络、系统时间和代理设置，不要直接关闭 TLS 证书校验。
+
+---
+
+## 四、安装 Foundryup 和 Foundry
+
+Foundryup 是 Foundry 官方的工具链安装器和版本管理器。运行官方安装脚本：
+
+```bash
+curl -L https://getfoundry.sh/install | bash
+```
+
+脚本会把 `foundryup` 安装到用户目录，并提示把 Foundry 的 `bin` 目录加入 `PATH`。让当前终端立即读取新的 Shell 配置：
+
+```bash
+source ~/.bashrc
+```
+
+然后安装最新稳定版 Foundry：
+
+```bash
+foundryup
+```
+
+Foundryup 会下载并校验适合当前平台的预编译程序，包括 `forge`、`cast`、`anvil` 和 `chisel`。正常使用预编译版本不需要另外安装 Rust。
+
+如果执行 `foundryup` 时提示 `command not found`，先关闭并重新打开 Ubuntu；仍然失败时检查：
+
+```bash
+echo "$PATH"
+ls -la ~/.foundry/bin
+```
+
+也可以在当前会话中临时补充路径：
+
+```bash
+export PATH="$HOME/.foundry/bin:$PATH"
+```
+
+随后重新执行 `foundryup`。不要使用 `sudo foundryup`，否则文件可能被安装到 root 用户目录，并产生权限混乱。
+
+---
+
+## 五、验证四个核心工具
+
+逐一查看版本：
+
+```bash
+forge --version
+cast --version
+anvil --version
+chisel --version
+```
+
+只要四条命令都输出版本信息，Foundry 就已成功加入 `PATH`。还可以确认实际使用的程序位置：
+
+```bash
+which forge
+which cast
+which anvil
+which chisel
+```
+
+默认路径通常位于：
+
+```text
+/home/<你的 Ubuntu 用户名>/.foundry/bin/
+```
+
+Foundry 的各组件可以独立使用，但通常会组合成“Anvil 提供本地链、Forge 编译与测试、Cast 与节点交互”的开发流程。
+
+---
+
+## 六、创建并测试第一个 Foundry 项目
+
+建议把项目放在 WSL 的 Linux 文件系统中，例如 `~/code`，而不是 `/mnt/c`。大量小文件的编译和依赖操作在 Linux 文件系统中通常更快，权限行为也更一致。
+
+```bash
+mkdir -p ~/code
+cd ~/code
+forge init hello_foundry
+cd hello_foundry
+```
+
+`forge init` 默认会生成类似结构：
+
+```text
+hello_foundry/
+├── foundry.toml
+├── lib/
+├── script/
+├── src/
+│   └── Counter.sol
+└── test/
+    └── Counter.t.sol
+```
+
+其中：
+
+- `foundry.toml` 是项目配置文件
+- `src` 存放 Solidity 合约
+- `test` 存放 Solidity 测试
+- `script` 存放部署和交互脚本
+- `lib` 存放 Git 子模块形式的依赖
+
+编译项目：
+
+```bash
+forge build
+```
+
+运行测试：
+
+```bash
+forge test
+```
+
+预期测试结果中会出现 `Suite result: ok`。需要查看调用轨迹时，可以提高日志级别：
+
+```bash
+forge test -vvv
+```
+
+到这里，WSL、Solidity 编译器下载、项目初始化、编译和测试整条链路都已经可用。
+
+---
+
+## 七、启动本地 Anvil 节点
+
+在项目目录打开一个新的 Ubuntu 终端，运行：
+
+```bash
+anvil
+```
+
+默认情况下，Anvil 会：
+
+- 在 `http://127.0.0.1:8545` 启动 JSON-RPC 服务
+- 创建一组预充值的本地测试账户
+- 显示测试账户地址和私钥
+- 使用本地测试链 ID `31337`
+
+保持这个终端运行，再打开另一个 Ubuntu 终端，用 Cast 查询最新区块号：
+
+```bash
+cast block-number --rpc-url http://127.0.0.1:8545
+```
+
+返回 `0` 或更大的数字说明 Cast 已经成功连接 Anvil。也可以查询链 ID：
+
+```bash
+cast chain-id --rpc-url http://127.0.0.1:8545
+```
+
+按 `Ctrl + C` 可以停止 Anvil。Anvil 在终端中显示的账户和私钥是公开测试数据，只能用于该本地节点。不要向这些地址转入主网资产，也不要在真实网络或生产配置中使用这些私钥。
+
+---
+
+## 八、在 Windows 中编辑 WSL 项目
+
+在 Windows 文件资源管理器地址栏输入：
+
+```text
+\\wsl$\Ubuntu\home\<你的 Ubuntu 用户名>\code\hello_foundry
+```
+
+即可查看 WSL 中的项目文件。使用 VS Code 时，推荐安装 Microsoft 的 WSL 扩展，然后在 Ubuntu 项目目录执行：
+
+```bash
+code .
+```
+
+窗口左下角应显示已连接 WSL。此时终端、Git、Foundry 和编辑器扩展都运行在同一个 Linux 环境中，能够避免“Windows 能找到命令，但 WSL 找不到”或路径格式不同的问题。
+
+如果 `code` 命令不存在，先在 Windows 安装 VS Code 和 WSL 扩展，然后从 VS Code 命令面板执行 `WSL: Connect to WSL`。
+
+---
+
+## 九、更新与版本管理
+
+更新到最新稳定版：
+
+```bash
+foundryup
+```
+
+安装 nightly 版本：
+
+```bash
+foundryup --install nightly
+```
+
+Nightly 会包含最新功能，但也更可能出现不兼容变化。团队项目应固定并记录经过验证的 Foundry 版本，CI 与本地环境也应保持一致。查看 Foundryup 支持的版本、分支和提交参数：
+
+```bash
+foundryup --help
+```
+
+执行更新后，再运行一次项目测试：
+
+```bash
+forge test
+```
+
+不要只因为工具可以自动更新，就在发布前无条件切换到最新 nightly。
+
+---
+
+## 十、常见问题排查
+
+| 现象 | 常见原因 | 解决方法 |
+| --- | --- | --- |
+| `wsl` 不是可识别的命令 | Windows 版本过旧，或 WSL 组件未安装 | 更新 Windows，并以管理员身份重新执行 `wsl --install` |
+| WSL 提示需要虚拟化 | BIOS/UEFI 未启用虚拟化 | 启用 Intel VT-x 或 AMD-V，再重试 |
+| Ubuntu 安装停在 `0.0%` | Store 或下载通道受限 | 在管理员 PowerShell 执行 `wsl --install --web-download -d Ubuntu` |
+| `foundryup: command not found` | 当前 Shell 尚未刷新 `PATH` | 执行 `source ~/.bashrc`，或重启 Ubuntu |
+| `forge: command not found` | 只装了 Foundryup，尚未安装工具链 | 执行 `foundryup` 并检查 `~/.foundry/bin` |
+| 安装脚本下载失败 | 网络、代理、DNS 或证书问题 | 检查连接和系统时间；不要使用不可信脚本镜像 |
+| `forge init` 无法拉取依赖 | GitHub 网络受限或 Git 未安装 | 检查 `git --version` 与 GitHub 连接 |
+| 在 `/mnt/c` 中编译很慢 | 跨 Windows/WSL 文件系统 I/O 开销 | 把项目移动到 `~/code` 等 Linux 目录 |
+| PowerShell 中能运行、Ubuntu 中不能运行 | 两边是独立环境和 `PATH` | 全程在 Ubuntu/WSL 中安装并运行 Foundry |
+| Anvil 的 8545 端口被占用 | 另一个节点或程序正在监听 | 停止冲突程序，或使用 `anvil --port 8546` |
+
+查看 WSL 状态与更新 WSL 的 PowerShell 命令：
+
+```powershell
+wsl --status
+wsl --update
+wsl --shutdown
+```
+
+`wsl --shutdown` 会停止所有 WSL 发行版，适合在 WSL 状态异常后重新启动环境，但运行中的 Anvil 和其他 WSL 进程也会一并停止。
+
+---
+
+## 总结
+
+在 Windows 上搭建 Foundry 的推荐路径可以概括为：
+
+1. 使用管理员 PowerShell 安装 WSL 2 和 Ubuntu
+2. 在 Ubuntu 中安装 `curl`、Git 等基础依赖
+3. 运行 Foundry 官方脚本安装 Foundryup
+4. 通过 `foundryup` 安装 Forge、Cast、Anvil 和 Chisel
+5. 使用 `forge init`、`forge build` 和 `forge test` 验证项目链路
+6. 启动 Anvil，并用 Cast 验证本地 RPC 连接
+
+后续开发时，把代码保存在 WSL 的 Linux 文件系统中，并让编辑器通过 WSL 连接项目，可以获得更一致的命令、路径、权限和编译体验。
+
+## 参考资料
+
+- [Foundry 官方网站](https://getfoundry.sh/)
+- [Foundry 安装文档](https://getfoundry.sh/introduction/installation/)
+- [Microsoft：使用 WSL 安装 Linux](https://learn.microsoft.com/windows/wsl/install)
+- [Microsoft：设置 WSL 开发环境](https://learn.microsoft.com/windows/wsl/setup/environment)
+

@@ -1,0 +1,648 @@
+export const metadata = {
+  title: "Foundry Cast 工具详解：命令大全、Solidity 开发场景与高级用法",
+  description:
+    "系统介绍 Foundry Cast 的查询、交易、ABI 编解码、日志、存储、钱包、RPC 与调试命令，并结合 Solidity 开发给出常用工作流和特殊技巧。",
+  date: "2025-09-15",
+  slug: "foundry-cast-command-guide",
+  lang: "zh",
+  tags: ["foundry", "cast", "solidity", "ethereum", "web3", "cli"],
+  draft: false,
+}
+
+Cast 是 Foundry 工具链中的链上交互命令行工具。Forge 负责项目、编译与测试，Anvil 负责本地节点，而 Cast 负责连接 JSON-RPC：查询账户和区块、读取合约、发送交易、编码 ABI、解析日志、检查存储以及管理签名。
+
+对 Solidity 开发者来说，Cast 的价值不只是“在终端调用合约”。它还能把前端、脚本和区块浏览器中的操作拆成可复制的命令，特别适合部署后验收、排查失败交易、验证代理合约、构造 calldata 和编写自动化脚本。
+
+> Cast 的子命令会随 Foundry 版本演进。本文按功能覆盖主要命令；本机安装版本始终以 `cast --help` 和 `cast <command> --help` 为准。
+
+---
+
+## 一、准备环境与安全边界
+
+确认 Cast 已安装：
+
+```bash
+cast --version
+cast --help
+```
+
+本文示例使用以下占位变量：
+
+```bash
+export ETH_RPC_URL=http://127.0.0.1:8545
+export TOKEN=0x0000000000000000000000000000000000000000
+export USER=0x0000000000000000000000000000000000000001
+```
+
+`ETH_RPC_URL` 是 Cast 默认识别的环境变量，因此许多命令可以省略 `--rpc-url`。公开项目应把 `.env` 和 `.env.*` 加入 `.gitignore`，但更推荐用加密 keystore 或硬件钱包，而不是长期保存明文私钥。
+
+先记住三类操作：
+
+| 类型 | 代表命令 | 是否改变链上状态 |
+| --- | --- | --- |
+| 只读查询/本地计算 | `call`、`balance`、`storage`、`calldata` | 否 |
+| 构造或签名但不广播 | `mktx`、`wallet sign` | 否 |
+| 签名并广播 | `send`、`publish` | 是，真实网络会消耗 Gas |
+
+在主网执行 `cast send` 前，先核对链 ID、目标地址、参数、发送账户和 `--value`。本文出现的地址均为占位符；Anvil 默认私钥是公开测试数据，绝不能用于公共网络。
+
+---
+
+## 二、最常用的网络、区块与账户查询
+
+检查当前连接的节点：
+
+```bash
+cast client
+cast chain-id
+cast chain
+cast block-number
+cast gas-price
+```
+
+查看指定区块：
+
+```bash
+cast block latest
+cast block 19000000 --json
+cast age latest
+cast base-fee latest
+```
+
+查询账户余额、nonce 和代码：
+
+```bash
+cast balance "$USER"
+cast balance "$USER" --ether
+cast nonce "$USER"
+cast code "$TOKEN"
+cast codesize "$TOKEN"
+cast codehash "$TOKEN"
+```
+
+`balance` 默认返回 wei；`--ether` 适合人工阅读。`code` 返回 `0x` 通常表示该地址在查询区块上不是已部署合约。历史状态可以用 `--block`：
+
+```bash
+cast balance "$USER" --block 19000000
+cast code "$TOKEN" --block 19000000
+```
+
+应用场景包括：部署后确认 bytecode、核对 RPC 是否连错网络、检查交易 nonce，以及比较升级前后的历史状态。
+
+---
+
+## 三、`cast call`：Solidity 开发中最高频的命令
+
+`cast call` 执行 `eth_call`，只模拟调用而不创建交易。基本形式是：
+
+```text
+cast call <合约地址> "函数签名(参数类型)(返回类型)" [参数...] [选项]
+```
+
+读取 ERC-20 元数据与余额：
+
+```bash
+cast call "$TOKEN" "name()(string)"
+cast call "$TOKEN" "symbol()(string)"
+cast call "$TOKEN" "decimals()(uint8)"
+cast call "$TOKEN" "totalSupply()(uint256)"
+cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER"
+```
+
+指定返回类型后，Cast 会把 ABI 返回值直接解码。多个返回值按 Solidity 类型顺序声明：
+
+```bash
+cast call "$POOL" \
+  "getReserves()(uint112,uint112,uint32)"
+```
+
+数组和 tuple 参数必须完整写出类型，并注意 Shell 引号：
+
+```bash
+cast call "$CONTRACT" \
+  "quote((address,uint256),uint256[])(uint256)" \
+  "($USER,1000)" "[1,2,3]"
+```
+
+模拟不同调用者、附带 ETH 或读取历史区块：
+
+```bash
+cast call "$VAULT" "maxWithdraw(address)(uint256)" "$USER" \
+  --from "$USER"
+
+cast call "$SALE" "buy()" \
+  --from "$USER" --value 0.1ether
+
+cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER" \
+  --block 19000000
+```
+
+特殊用法是给调用增加执行轨迹：
+
+```bash
+cast call "$ROUTER" \
+  "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)(uint256[])" \
+  1000000 1 "[$TOKEN,$QUOTE]" "$USER" 2000000000 \
+  --from "$USER" --trace
+```
+
+这适合在真正发送交易前检查 revert、内部调用和事件。轨迹调用可能需要节点支持调试方法，或由 Cast 在本地 fork 状态执行；具体选项使用 `cast call --help` 核对。
+
+---
+
+## 四、`estimate`、`send` 与完整写交易流程
+
+先估算 Gas：
+
+```bash
+cast estimate "$TOKEN" \
+  "transfer(address,uint256)" "$RECIPIENT" 1000000 \
+  --from "$USER"
+```
+
+再使用加密 keystore 发送：
+
+```bash
+cast wallet import deployer --interactive
+
+cast send "$TOKEN" \
+  "transfer(address,uint256)" "$RECIPIENT" 1000000 \
+  --account deployer
+```
+
+发送原生 ETH 时不需要函数签名：
+
+```bash
+cast send "$RECIPIENT" --value 0.01ether --account deployer
+```
+
+常用交易选项包括：
+
+- `--account <NAME>`：使用 Foundry keystore 账户
+- `--private-key <KEY>`：直接签名，只适合隔离的本地测试
+- `--ledger` / `--trezor`：使用硬件钱包
+- `--from <ADDRESS>`：指定发送者或配合外部签名器
+- `--value <AMOUNT>`：附带 ETH，例如 `0.1ether`
+- `--gas-limit <GAS>`：手动设置 Gas 上限
+- `--gas-price <PRICE>`：设置 legacy 或 EIP-1559 最大费用参数
+- `--priority-gas-price <PRICE>`：设置 EIP-1559 优先费
+- `--nonce <NONCE>`：手动指定 nonce
+- `--legacy`：强制使用 legacy 交易
+- `--async`：广播后立即返回交易哈希，不等待回执
+
+发送后查询：
+
+```bash
+cast receipt "$TX_HASH"
+cast receipt "$TX_HASH" --json
+cast tx "$TX_HASH"
+```
+
+生产操作推荐顺序：
+
+```text
+chain-id → call 模拟 → estimate → 硬件钱包/keystore 签名 → send → receipt → 事件与状态复核
+```
+
+`cast mktx` 只构造并签名原始交易，`cast publish` 再广播它：
+
+```bash
+RAW_TX=$(cast mktx "$TOKEN" \
+  "approve(address,uint256)" "$SPENDER" 1000000 \
+  --account deployer)
+
+cast publish "$RAW_TX"
+```
+
+这种“签名与广播分离”的方式适合离线签名、审核流水线和多节点容灾，但原始签名交易一旦泄露，任何人都可能广播。
+
+---
+
+## 五、ABI、selector 与 calldata 命令
+
+函数 selector 是函数规范签名 Keccak-256 的前 4 字节：
+
+```bash
+cast sig "transfer(address,uint256)"
+cast sig-event "Transfer(address,address,uint256)"
+```
+
+生成完整 calldata：
+
+```bash
+cast calldata "transfer(address,uint256)" "$RECIPIENT" 1000000
+```
+
+只编码参数，不包含 4 字节 selector：
+
+```bash
+cast abi-encode "transfer(address,uint256)" "$RECIPIENT" 1000000
+```
+
+解码函数返回值：
+
+```bash
+RESULT=$(cast call "$TOKEN" "balanceOf(address)" "$USER")
+cast decode-abi "balanceOf(address)(uint256)" "$RESULT"
+```
+
+解码输入 calldata、错误和字符串：
+
+```bash
+cast decode-calldata "$CALLDATA"
+cast decode-error "$REVERT_DATA"
+cast decode-error --sig "InsufficientBalance(uint256,uint256)" "$REVERT_DATA"
+cast decode-string "$ABI_ENCODED_STRING"
+cast pretty-calldata "$CALLDATA"
+```
+
+根据 selector 或 topic 查询公开签名数据库：
+
+```bash
+cast 4byte 0xa9059cbb
+cast 4byte-calldata "$CALLDATA"
+cast 4byte-event "$TOPIC0"
+```
+
+公开签名数据库可能返回多个候选结果，不能代替可信 ABI。代理、未验证合约和 selector 碰撞场景中，应结合源码、ABI 与执行轨迹判断。
+
+这些命令的典型应用是：为多签钱包生成 calldata、还原失败交易的 custom error、检查前端编码结果，以及在没有 ABI 文件时初步识别未知交易。
+
+---
+
+## 六、日志与事件查询
+
+按事件签名查询日志：
+
+```bash
+cast logs \
+  "Transfer(address,address,uint256)" \
+  --address "$TOKEN" \
+  --from-block 19000000 \
+  --to-block latest
+```
+
+也可以直接按 topic 查询：
+
+```bash
+TRANSFER_TOPIC=$(cast sig-event "Transfer(address,address,uint256)")
+cast logs "$TRANSFER_TOPIC" \
+  --address "$TOKEN" \
+  --from-block 19000000 \
+  --to-block 19001000
+```
+
+事件的 indexed 参数位于 topics，非 indexed 参数位于 data。需要手动解析原始日志时使用：
+
+```bash
+cast decode-event \
+  "Transfer(address,address,uint256)" \
+  "$DATA" \
+  --topics "$TOPIC0" "$TOPIC1" "$TOPIC2"
+```
+
+RPC 服务商通常限制单次日志区块范围。大范围查询应分段执行，并记录最后处理区块，避免漏数或重复。`cast logs` 适合部署验收、追踪角色变更、核对 Transfer/Approval，以及快速确认某个交易是否发出预期事件。
+
+---
+
+## 七、存储布局、代理与字节码分析
+
+读取原始存储槽：
+
+```bash
+cast storage "$CONTRACT" 0
+cast storage "$CONTRACT" 1 --block 19000000
+```
+
+计算 mapping 项的槽位，再读取值：
+
+```bash
+SLOT=$(cast index address "$USER" 0)
+cast storage "$TOKEN" "$SLOT"
+```
+
+嵌套 mapping 需要逐层计算槽位；实际槽号必须来自编译器 storage layout，不能仅凭变量在源码中的视觉顺序猜测。
+
+检查 EIP-1967 代理：
+
+```bash
+cast implementation "$PROXY"
+cast admin "$PROXY"
+```
+
+分析字节码：
+
+```bash
+cast code "$CONTRACT"
+cast code "$CONTRACT" --disassemble
+cast disassemble "$BYTECODE"
+cast selectors "$BYTECODE"
+cast codesize "$CONTRACT"
+```
+
+验证账户存储证明和根：
+
+```bash
+cast storage-root "$CONTRACT"
+cast proof "$CONTRACT" "$SLOT"
+```
+
+确定性地址相关命令：
+
+```bash
+cast compute-address "$DEPLOYER" --nonce 7
+cast create2 --deployer "$DEPLOYER" --init-code-hash "$INIT_CODE_HASH" --salt 0x01
+```
+
+这组命令适合代理升级验收、状态变量排错、CREATE/CREATE2 地址预计算、合约体积检查，以及识别没有验证源码的 bytecode。
+
+---
+
+## 八、失败交易重放与调试
+
+查看交易和回执：
+
+```bash
+cast tx "$TX_HASH" --json
+cast receipt "$TX_HASH" --json
+```
+
+在本地环境重放已上链交易并输出执行轨迹：
+
+```bash
+cast run "$TX_HASH"
+cast run "$TX_HASH" --decode-internal
+cast run "$TX_HASH" --debug
+```
+
+`--debug` 打开交互式调试器；`--decode-internal` 尝试识别内部函数。还可用标签提高轨迹可读性：
+
+```bash
+cast run "$TX_HASH" \
+  --label "$TOKEN:Token" \
+  --label "$USER:User"
+```
+
+`cast run --quick` 只使用前一区块状态，速度更快，但结果可能与真实交易执行环境不同，不应拿它作为最终事故结论。
+
+常见排查顺序是：
+
+1. 用 `tx` 确认 `to`、input、value、nonce 和费用
+2. 用 `receipt` 确认 status、Gas 和日志
+3. 用 `decode-calldata` 识别函数与参数
+4. 用 `run` 查看第一次 revert 的内部调用
+5. 用 `decode-error` 解码 revert data
+6. 用历史 `call`、`storage` 和 `balance` 复核交易前状态
+
+---
+
+## 九、钱包、签名与 ENS
+
+生成新钱包：
+
+```bash
+cast wallet new
+```
+
+导入加密 keystore：
+
+```bash
+cast wallet import deployer --interactive
+cast wallet list
+cast wallet address --account deployer
+```
+
+签名消息并恢复签名者：
+
+```bash
+SIGNATURE=$(cast wallet sign --account deployer "hello foundry")
+cast wallet verify --address "$USER" "hello foundry" "$SIGNATURE"
+cast hash-message "hello foundry"
+```
+
+具体钱包子命令因版本可能变化，使用：
+
+```bash
+cast wallet --help
+cast wallet sign --help
+```
+
+ENS 工具：
+
+```bash
+cast resolve-name vitalik.eth
+cast lookup-address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+cast namehash vitalik.eth
+```
+
+本地开发可以使用 Anvil 默认账户；测试网推荐加密 keystore；主网推荐硬件钱包或受审计的远程签名系统。不要把私钥写入 Shell 历史、命令截图、CI 日志或 Git 仓库。
+
+---
+
+## 十、原始 JSON-RPC 与自动化脚本
+
+Cast 没有封装某个节点方法时，可以直接调用 JSON-RPC：
+
+```bash
+cast rpc eth_chainId
+cast rpc eth_getBalance "$USER" latest
+cast rpc eth_getBlockByNumber latest false
+```
+
+使用原始 JSON 参数数组：
+
+```bash
+cast rpc --raw eth_getBlockByNumber '["0x123", false]'
+```
+
+节点专用调试方法同样可以调用：
+
+```bash
+cast rpc debug_traceTransaction "$TX_HASH" '{}'
+```
+
+是否支持 `debug_`、`trace_`、`txpool_` 等命名空间取决于节点和 RPC 服务商。检查交易池：
+
+```bash
+cast tx-pool status
+cast tx-pool content
+cast tx-pool content-from "$USER"
+cast tx-pool inspect
+```
+
+脚本中优先使用 `--json`，再交给 `jq` 等工具处理：
+
+```bash
+LATEST=$(cast block-number)
+BALANCE=$(cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER")
+printf 'block=%s balance=%s\n' "$LATEST" "$BALANCE"
+```
+
+自动化脚本应设置失败即退出、校验链 ID，并为 RPC 请求增加合理超时和重试。写操作不要只判断命令是否返回哈希，还要等待并检查 receipt 的状态。
+
+---
+
+## 十一、Cast 命令大全速查
+
+下面按应用场景归类。别名和细分选项较多，完整参数请运行 `cast <命令> --help`。
+
+### 链、区块、账户与交易
+
+| 命令 | 用途 |
+| --- | --- |
+| `balance` / `nonce` | 查询账户余额与交易 nonce |
+| `block` / `block-number` | 查询区块详情与最新高度 |
+| `age` / `base-fee` / `gas-price` | 查询区块时间、基础费和 Gas 价格 |
+| `chain` / `chain-id` / `client` | 识别网络、链 ID 和节点客户端 |
+| `tx` / `receipt` | 查询交易对象与交易回执 |
+| `find-block` | 找到最接近指定时间戳的区块 |
+| `access-list` | 为交易创建 EIP-2930 access list |
+| `estimate` | 估算交易 Gas |
+| `call` | 只读或模拟执行合约调用 |
+| `send` | 签名并广播交易 |
+| `mktx` / `publish` | 构造签名交易 / 广播原始交易 |
+| `decode-transaction` | 解码已签名的 typed transaction |
+| `run` | 在本地重放已发布交易并输出轨迹 |
+| `tx-pool` | 查看节点交易池的状态、内容和摘要 |
+| `da-estimate` | 估算 OP Stack 区块的数据可用性大小 |
+
+### 合约、源码、代理与存储
+
+| 命令 | 用途 |
+| --- | --- |
+| `code` / `codehash` / `codesize` | 获取 runtime bytecode、代码哈希和大小 |
+| `disassemble` / `selectors` | 反汇编 bytecode、提取 selector |
+| `storage` / `storage-root` / `proof` | 读取存储槽、存储根和 Merkle proof |
+| `index` | 计算 Solidity mapping 项存储槽 |
+| `index-erc7201` | 计算 ERC-7201 namespaced storage 槽位 |
+| `implementation` / `admin` | 读取 EIP-1967 实现与管理员地址 |
+| `constructor-args` | 显示合约部署时的构造参数 |
+| `creation-code` | 从浏览器与 RPC 获取 creation code |
+| `compute-address` | 按部署者与 nonce 计算 CREATE 地址 |
+| `create2` | 计算或搜索确定性 CREATE2 地址与 salt |
+| `source` | 从区块浏览器下载已验证源码 |
+| `interface` | 从 ABI 生成 Solidity interface |
+| `artifact` | 生成可用于本地部署的 artifact |
+| `bind` | 从 ABI 生成 Rust binding |
+
+### ABI、签名、事件和错误
+
+| 命令 | 用途 |
+| --- | --- |
+| `sig` / `sig-event` | 计算函数 selector / 事件 topic0 |
+| `calldata` / `abi-encode` | 编码完整 calldata / 仅编码 ABI 参数 |
+| `decode-abi` / `decode-calldata` | 按 ABI 解码返回值或输入数据 |
+| `decode-event` / `decode-error` | 解码事件与 custom error |
+| `decode-string` | 解码 ABI string |
+| `pretty-calldata` | 以易读形式显示 calldata |
+| `4byte` / `4byte-calldata` / `4byte-event` | 从 OpenChain 查询 selector、calldata 或 topic0 候选签名 |
+| `upload-signature` | 上传函数或事件签名到 OpenChain |
+| `logs` | 按事件、topic、地址和区块范围查询日志 |
+
+### 数值、单位、哈希与格式转换
+
+| 命令 | 用途 |
+| --- | --- |
+| `to-wei` / `from-wei` / `to-unit` | 在 ether、gwei、wei 间转换 |
+| `parse-units` / `format-units` | 按任意 decimals 解析/格式化代币数量 |
+| `to-fixed-point` / `from-fixed-point` | 整数与定点数转换 |
+| `to-hex` / `to-dec` / `to-base` | 十六进制、十进制和任意进制转换 |
+| `to-uint256` / `to-int256` | 编码 256 位无符号/有符号整数 |
+| `max-uint` / `max-int` / `min-int` | 输出 Solidity 整数类型边界 |
+| `to-bytes32` / `format-bytes32-string` | 转换 bytes32 或编码短字符串 |
+| `parse-bytes32-string` / `parse-bytes32-address` | 从 bytes32 恢复字符串或地址 |
+| `to-utf8` / `from-utf8` / `to-ascii` | 文本与十六进制数据互转 |
+| `to-hexdata` / `concat-hex` / `from-bin` | 规范化、拼接或转换十六进制数据 |
+| `to-rlp` / `from-rlp` | RLP 编码与解码 |
+| `keccak` / `hash-message` | Keccak-256 与 EIP-191 消息哈希 |
+| `shl` / `shr` | 位左移与右移 |
+| `address-zero` / `hash-zero` | 输出零地址与零哈希 |
+| `to-check-sum-address` | 转换为 EIP-55 checksum 地址 |
+
+### 地址、ENS、钱包与其他工具
+
+| 命令 | 用途 |
+| --- | --- |
+| `wallet` | 创建、导入、列出账户并执行签名等钱包操作 |
+| `resolve-name` / `lookup-address` | ENS 正向解析与反向解析 |
+| `namehash` | 计算 ENS namehash |
+| `recover-authority` | 从 EIP-7702 Authorization JSON 恢复 authority |
+| `rpc` | 调用任意 JSON-RPC 方法 |
+| `completions` | 生成 Shell 自动补全脚本 |
+| `generate-fig-spec` | 生成 Fig 自动补全规范 |
+| `help` | 查看 Cast 或子命令帮助 |
+
+---
+
+## 十二、Solidity 开发常用组合场景
+
+### 部署后冒烟检查
+
+```bash
+cast chain-id
+cast code "$CONTRACT"
+cast call "$CONTRACT" "owner()(address)"
+cast call "$CONTRACT" "paused()(bool)"
+cast implementation "$PROXY"
+```
+
+### ERC-20 精度安全转换
+
+不要假设所有代币都是 18 位：
+
+```bash
+DECIMALS=$(cast call "$TOKEN" "decimals()(uint8)")
+RAW=$(cast parse-units 1.5 "$DECIMALS")
+cast format-units "$RAW" "$DECIMALS"
+```
+
+### 检查授权再发送交易
+
+```bash
+cast call "$TOKEN" "allowance(address,address)(uint256)" "$USER" "$SPENDER"
+cast estimate "$TOKEN" "approve(address,uint256)" "$SPENDER" "$RAW" --from "$USER"
+cast send "$TOKEN" "approve(address,uint256)" "$SPENDER" "$RAW" --account deployer
+```
+
+### 对比历史状态
+
+```bash
+cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER" --block 19000000
+cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER" --block 19001000
+```
+
+历史查询要求 RPC 保留对应 archive state；普通裁剪节点可能返回 missing trie node 或 historical state unavailable。
+
+### 用 `--curl` 审计 RPC 请求
+
+许多 RPC 型命令支持 `--curl`，它不发送请求，而是打印等价 curl 命令：
+
+```bash
+cast balance "$USER" --curl
+```
+
+这对排查代理头、复现服务商问题和理解底层 JSON-RPC 很有帮助。不要把包含认证 Header 的输出贴到公开 Issue。
+
+---
+
+## 总结
+
+Cast 可以覆盖 Solidity 合约从开发到线上排障的大部分命令行交互：
+
+1. 用 `call`、`balance`、`block` 和 `storage` 读取状态
+2. 用 `estimate`、`send`、`receipt` 完成受控写操作
+3. 用 `sig`、`calldata` 和 `decode-*` 检查 ABI 边界
+4. 用 `logs`、`tx` 和 `run` 追踪事件与失败交易
+5. 用 `implementation`、`index`、`code` 分析代理、存储和字节码
+6. 用 `wallet`、硬件钱包和 keystore 避免明文私钥
+7. 用 `rpc` 和 `--json` 把临时排查升级为可复现自动化
+
+真正值得熟练掌握的不是每个别名，而是读取、模拟、签名、广播、确认这条安全边界。任何陌生命令先运行 `--help`，任何主网写操作先在 fork 或测试网模拟。
+
+## 参考资料
+
+- [Foundry：Cast Overview](https://getfoundry.sh/cast/overview/)
+- [Foundry：Cast Command Reference](https://getfoundry.sh/cast/reference/cast/)
+- [Foundry：Cast RPC](https://getfoundry.sh/cast/reference/rpc/)
+- [Foundry：Cast Run](https://getfoundry.sh/cast/reference/run/)
+

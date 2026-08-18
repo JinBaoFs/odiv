@@ -1,0 +1,648 @@
+export const metadata = {
+  title: "Foundry Cast Guide: Complete Command Reference and Solidity Workflows",
+  description:
+    "A practical guide to Foundry Cast queries, transactions, ABI encoding, logs, storage, wallets, RPC calls, debugging, and advanced Solidity development workflows.",
+  date: "2025-09-15",
+  slug: "foundry-cast-command-guide",
+  lang: "en",
+  tags: ["foundry", "cast", "solidity", "ethereum", "web3", "cli"],
+  draft: false,
+}
+
+Cast is Foundry's command-line tool for on-chain interaction. Forge manages projects, compilation, and tests; Anvil provides a local node; Cast connects to JSON-RPC to query accounts and blocks, read contracts, send transactions, encode ABI data, inspect logs, analyze storage, and manage signatures.
+
+For Solidity developers, Cast is more than a terminal contract caller. It turns operations normally hidden behind a frontend, script, or block explorer into reproducible commands. That makes it especially useful for post-deployment checks, failed-transaction investigation, proxy verification, calldata construction, and automation.
+
+> Cast subcommands evolve with Foundry releases. This guide covers the major command families by purpose; `cast --help` and `cast <command> --help` are authoritative for the installed version.
+
+---
+
+## 1. Environment and security boundaries
+
+Confirm that Cast is installed:
+
+```bash
+cast --version
+cast --help
+```
+
+The examples use these placeholder variables:
+
+```bash
+export ETH_RPC_URL=http://127.0.0.1:8545
+export TOKEN=0x0000000000000000000000000000000000000000
+export USER=0x0000000000000000000000000000000000000001
+```
+
+Cast recognizes `ETH_RPC_URL`, so many commands can omit `--rpc-url`. Add `.env` and `.env.*` to `.gitignore`, but prefer encrypted keystores or hardware wallets over long-lived plaintext private keys.
+
+Keep three operation classes distinct:
+
+| Class | Representative commands | Changes chain state? |
+| --- | --- | --- |
+| Read-only or local computation | `call`, `balance`, `storage`, `calldata` | No |
+| Build or sign without broadcasting | `mktx`, `wallet sign` | No |
+| Sign and broadcast | `send`, `publish` | Yes; costs gas on live networks |
+
+Before any mainnet `cast send`, verify the chain ID, destination, arguments, sender, and `--value`. Addresses in this article are placeholders. Anvil default keys are public test data and must never be used on a public network.
+
+---
+
+## 2. Network, block, and account queries
+
+Inspect the connected node:
+
+```bash
+cast client
+cast chain-id
+cast chain
+cast block-number
+cast gas-price
+```
+
+Inspect blocks:
+
+```bash
+cast block latest
+cast block 19000000 --json
+cast age latest
+cast base-fee latest
+```
+
+Query an account's balance, nonce, and code:
+
+```bash
+cast balance "$USER"
+cast balance "$USER" --ether
+cast nonce "$USER"
+cast code "$TOKEN"
+cast codesize "$TOKEN"
+cast codehash "$TOKEN"
+```
+
+`balance` returns wei by default; `--ether` is easier for humans. A `code` result of `0x` usually means the address had no deployed contract at that block. Query historical state with `--block`:
+
+```bash
+cast balance "$USER" --block 19000000
+cast code "$TOKEN" --block 19000000
+```
+
+These commands help confirm deployment bytecode, detect a wrong RPC network, inspect transaction nonces, and compare state before and after an upgrade.
+
+---
+
+## 3. `cast call`: the everyday Solidity command
+
+`cast call` performs an `eth_call`; it simulates execution without creating a transaction. Its core form is:
+
+```text
+cast call <contract> "functionSignature(argumentTypes)(returnTypes)" [arguments...] [options]
+```
+
+Read ERC-20 metadata and balances:
+
+```bash
+cast call "$TOKEN" "name()(string)"
+cast call "$TOKEN" "symbol()(string)"
+cast call "$TOKEN" "decimals()(uint8)"
+cast call "$TOKEN" "totalSupply()(uint256)"
+cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER"
+```
+
+When return types are present, Cast decodes the ABI result. Declare multiple return values in Solidity order:
+
+```bash
+cast call "$POOL" \
+  "getReserves()(uint112,uint112,uint32)"
+```
+
+Arrays and tuples require complete types and careful shell quoting:
+
+```bash
+cast call "$CONTRACT" \
+  "quote((address,uint256),uint256[])(uint256)" \
+  "($USER,1000)" "[1,2,3]"
+```
+
+Simulate another caller, attach ETH, or read a historical block:
+
+```bash
+cast call "$VAULT" "maxWithdraw(address)(uint256)" "$USER" \
+  --from "$USER"
+
+cast call "$SALE" "buy()" \
+  --from "$USER" --value 0.1ether
+
+cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER" \
+  --block 19000000
+```
+
+A useful advanced pattern is tracing a simulated call:
+
+```bash
+cast call "$ROUTER" \
+  "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)(uint256[])" \
+  1000000 1 "[$TOKEN,$QUOTE]" "$USER" 2000000000 \
+  --from "$USER" --trace
+```
+
+This can expose reverts, internal calls, and events before a transaction is sent. Trace calls may require debug RPC support or local fork execution by Cast; check `cast call --help` for the exact version's options.
+
+---
+
+## 4. `estimate`, `send`, and the write workflow
+
+Estimate gas first:
+
+```bash
+cast estimate "$TOKEN" \
+  "transfer(address,uint256)" "$RECIPIENT" 1000000 \
+  --from "$USER"
+```
+
+Then send with an encrypted keystore:
+
+```bash
+cast wallet import deployer --interactive
+
+cast send "$TOKEN" \
+  "transfer(address,uint256)" "$RECIPIENT" 1000000 \
+  --account deployer
+```
+
+Sending native ETH does not require a function signature:
+
+```bash
+cast send "$RECIPIENT" --value 0.01ether --account deployer
+```
+
+Common transaction options include:
+
+- `--account <NAME>` uses a Foundry keystore account
+- `--private-key <KEY>` signs directly and should be restricted to isolated local tests
+- `--ledger` / `--trezor` uses a hardware wallet
+- `--from <ADDRESS>` selects the sender or works with an external signer
+- `--value <AMOUNT>` attaches ETH, such as `0.1ether`
+- `--gas-limit <GAS>` manually sets the gas limit
+- `--gas-price <PRICE>` sets legacy or EIP-1559 maximum fee values
+- `--priority-gas-price <PRICE>` sets the EIP-1559 priority fee
+- `--nonce <NONCE>` selects a nonce manually
+- `--legacy` forces a legacy transaction
+- `--async` returns the hash immediately instead of waiting for a receipt
+
+Inspect the result:
+
+```bash
+cast receipt "$TX_HASH"
+cast receipt "$TX_HASH" --json
+cast tx "$TX_HASH"
+```
+
+A production-safe sequence is:
+
+```text
+chain-id → call simulation → estimate → hardware/keystore signature → send → receipt → event and state checks
+```
+
+`cast mktx` signs and builds a raw transaction, while `cast publish` broadcasts it later:
+
+```bash
+RAW_TX=$(cast mktx "$TOKEN" \
+  "approve(address,uint256)" "$SPENDER" 1000000 \
+  --account deployer)
+
+cast publish "$RAW_TX"
+```
+
+Separating signing from broadcasting is useful for offline signers, review pipelines, and multi-node failover. A leaked raw signed transaction can still be broadcast by anyone.
+
+---
+
+## 5. ABI, selectors, and calldata
+
+A function selector is the first four bytes of the Keccak-256 hash of its canonical signature:
+
+```bash
+cast sig "transfer(address,uint256)"
+cast sig-event "Transfer(address,address,uint256)"
+```
+
+Build complete calldata:
+
+```bash
+cast calldata "transfer(address,uint256)" "$RECIPIENT" 1000000
+```
+
+Encode arguments without the four-byte selector:
+
+```bash
+cast abi-encode "transfer(address,uint256)" "$RECIPIENT" 1000000
+```
+
+Decode a function result:
+
+```bash
+RESULT=$(cast call "$TOKEN" "balanceOf(address)" "$USER")
+cast decode-abi "balanceOf(address)(uint256)" "$RESULT"
+```
+
+Decode input calldata, errors, and strings:
+
+```bash
+cast decode-calldata "$CALLDATA"
+cast decode-error "$REVERT_DATA"
+cast decode-error --sig "InsufficientBalance(uint256,uint256)" "$REVERT_DATA"
+cast decode-string "$ABI_ENCODED_STRING"
+cast pretty-calldata "$CALLDATA"
+```
+
+Search a public signature database by selector or topic:
+
+```bash
+cast 4byte 0xa9059cbb
+cast 4byte-calldata "$CALLDATA"
+cast 4byte-event "$TOPIC0"
+```
+
+A public signature database can return multiple candidates and is not a substitute for a trusted ABI. With proxies, unverified contracts, or selector collisions, combine source code, ABI data, and execution traces.
+
+These commands are useful for building multisig calldata, recovering custom errors from failed transactions, checking frontend encoders, and triaging an unknown transaction without a local ABI file.
+
+---
+
+## 6. Logs and events
+
+Query logs by event signature:
+
+```bash
+cast logs \
+  "Transfer(address,address,uint256)" \
+  --address "$TOKEN" \
+  --from-block 19000000 \
+  --to-block latest
+```
+
+Or query directly with topic0:
+
+```bash
+TRANSFER_TOPIC=$(cast sig-event "Transfer(address,address,uint256)")
+cast logs "$TRANSFER_TOPIC" \
+  --address "$TOKEN" \
+  --from-block 19000000 \
+  --to-block 19001000
+```
+
+Indexed event arguments live in topics; non-indexed arguments live in data. Decode a raw log manually with:
+
+```bash
+cast decode-event \
+  "Transfer(address,address,uint256)" \
+  "$DATA" \
+  --topics "$TOPIC0" "$TOPIC1" "$TOPIC2"
+```
+
+RPC providers commonly limit the block range of one log request. Split large scans into ranges and persist the last processed block to avoid omissions or duplicates. `cast logs` is well suited to deployment acceptance, role-change tracking, Transfer/Approval checks, and confirming that a transaction emitted its expected event.
+
+---
+
+## 7. Storage layout, proxies, and bytecode
+
+Read raw storage slots:
+
+```bash
+cast storage "$CONTRACT" 0
+cast storage "$CONTRACT" 1 --block 19000000
+```
+
+Compute the slot of a mapping entry, then read it:
+
+```bash
+SLOT=$(cast index address "$USER" 0)
+cast storage "$TOKEN" "$SLOT"
+```
+
+Nested mappings require repeated slot calculations. Obtain the real slot number from compiler storage layout output instead of guessing from the variable's visual position in source code.
+
+Inspect an EIP-1967 proxy:
+
+```bash
+cast implementation "$PROXY"
+cast admin "$PROXY"
+```
+
+Analyze bytecode:
+
+```bash
+cast code "$CONTRACT"
+cast code "$CONTRACT" --disassemble
+cast disassemble "$BYTECODE"
+cast selectors "$BYTECODE"
+cast codesize "$CONTRACT"
+```
+
+Inspect storage roots and proofs:
+
+```bash
+cast storage-root "$CONTRACT"
+cast proof "$CONTRACT" "$SLOT"
+```
+
+Compute deterministic deployment addresses:
+
+```bash
+cast compute-address "$DEPLOYER" --nonce 7
+cast create2 --deployer "$DEPLOYER" --init-code-hash "$INIT_CODE_HASH" --salt 0x01
+```
+
+This command family supports proxy-upgrade acceptance, state-variable debugging, CREATE/CREATE2 address prediction, contract-size checks, and inspection of bytecode without verified source.
+
+---
+
+## 8. Replay and debug failed transactions
+
+Inspect a transaction and receipt:
+
+```bash
+cast tx "$TX_HASH" --json
+cast receipt "$TX_HASH" --json
+```
+
+Replay a published transaction locally and print its trace:
+
+```bash
+cast run "$TX_HASH"
+cast run "$TX_HASH" --decode-internal
+cast run "$TX_HASH" --debug
+```
+
+`--debug` opens the interactive debugger. `--decode-internal` attempts to identify internal functions. Labels make traces easier to read:
+
+```bash
+cast run "$TX_HASH" \
+  --label "$TOKEN:Token" \
+  --label "$USER:User"
+```
+
+`cast run --quick` uses only the previous block's state. It is faster, but can differ from the transaction's actual execution context and should not be the final basis of an incident conclusion.
+
+A useful investigation sequence is:
+
+1. Use `tx` to inspect `to`, input, value, nonce, and fees
+2. Use `receipt` to inspect status, gas, and logs
+3. Use `decode-calldata` to identify the function and arguments
+4. Use `run` to find the first reverting internal call
+5. Use `decode-error` on the revert data
+6. Use historical `call`, `storage`, and `balance` to reconstruct pre-transaction state
+
+---
+
+## 9. Wallets, signatures, and ENS
+
+Generate a wallet:
+
+```bash
+cast wallet new
+```
+
+Import and inspect an encrypted keystore:
+
+```bash
+cast wallet import deployer --interactive
+cast wallet list
+cast wallet address --account deployer
+```
+
+Sign a message and verify its signer:
+
+```bash
+SIGNATURE=$(cast wallet sign --account deployer "hello foundry")
+cast wallet verify --address "$USER" "hello foundry" "$SIGNATURE"
+cast hash-message "hello foundry"
+```
+
+Wallet subcommands can vary by release. Inspect them directly:
+
+```bash
+cast wallet --help
+cast wallet sign --help
+```
+
+ENS utilities include:
+
+```bash
+cast resolve-name vitalik.eth
+cast lookup-address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+cast namehash vitalik.eth
+```
+
+Use Anvil accounts for local development, encrypted keystores for testnets, and a hardware wallet or audited remote signer for mainnet. Never place private keys in shell history, screenshots, CI logs, or Git.
+
+---
+
+## 10. Raw JSON-RPC and automation
+
+Call JSON-RPC directly when Cast has no dedicated wrapper:
+
+```bash
+cast rpc eth_chainId
+cast rpc eth_getBalance "$USER" latest
+cast rpc eth_getBlockByNumber latest false
+```
+
+Pass a raw JSON parameter array:
+
+```bash
+cast rpc --raw eth_getBlockByNumber '["0x123", false]'
+```
+
+Node-specific debug methods work the same way:
+
+```bash
+cast rpc debug_traceTransaction "$TX_HASH" '{}'
+```
+
+Support for `debug_`, `trace_`, and `txpool_` namespaces depends on the node and RPC provider. Inspect a node transaction pool with:
+
+```bash
+cast tx-pool status
+cast tx-pool content
+cast tx-pool content-from "$USER"
+cast tx-pool inspect
+```
+
+Prefer `--json` in scripts, then process the result with tools such as `jq`:
+
+```bash
+LATEST=$(cast block-number)
+BALANCE=$(cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER")
+printf 'block=%s balance=%s\n' "$LATEST" "$BALANCE"
+```
+
+Automation should fail fast, verify chain ID, and use appropriate RPC timeouts and retries. A write script must wait for and inspect the receipt status instead of treating a returned transaction hash as success.
+
+---
+
+## 11. Complete Cast command map
+
+The tables group the main commands by use case. Run `cast <command> --help` for aliases and every option.
+
+### Chain, block, account, and transaction commands
+
+| Command | Purpose |
+| --- | --- |
+| `balance` / `nonce` | Query account balance and transaction nonce |
+| `block` / `block-number` | Query block details and latest height |
+| `age` / `base-fee` / `gas-price` | Query block time, base fee, and gas price |
+| `chain` / `chain-id` / `client` | Identify network, chain ID, and node client |
+| `tx` / `receipt` | Fetch a transaction object and receipt |
+| `find-block` | Find the block closest to a timestamp |
+| `access-list` | Build an EIP-2930 transaction access list |
+| `estimate` | Estimate transaction gas |
+| `call` | Read or simulate a contract call |
+| `send` | Sign and broadcast a transaction |
+| `mktx` / `publish` | Build a signed transaction / broadcast raw transaction |
+| `decode-transaction` | Decode a signed typed transaction |
+| `run` | Replay a published transaction locally with traces |
+| `tx-pool` | Inspect node transaction-pool status and content |
+| `da-estimate` | Estimate data-availability size for an OP Stack block |
+
+### Contract, source, proxy, and storage commands
+
+| Command | Purpose |
+| --- | --- |
+| `code` / `codehash` / `codesize` | Fetch runtime bytecode, code hash, and size |
+| `disassemble` / `selectors` | Disassemble bytecode and extract selectors |
+| `storage` / `storage-root` / `proof` | Read slots, storage root, and Merkle proof |
+| `index` | Compute the storage slot of a Solidity mapping entry |
+| `index-erc7201` | Compute an ERC-7201 namespaced storage slot |
+| `implementation` / `admin` | Read EIP-1967 implementation and admin addresses |
+| `constructor-args` | Display constructor arguments used at deployment |
+| `creation-code` | Retrieve creation code from explorer and RPC data |
+| `compute-address` | Compute a CREATE address from deployer and nonce |
+| `create2` | Compute or search deterministic CREATE2 addresses and salts |
+| `source` | Download verified source from a block explorer |
+| `interface` | Generate a Solidity interface from an ABI |
+| `artifact` | Generate an artifact for local contract deployment |
+| `bind` | Generate Rust bindings from an ABI |
+
+### ABI, signatures, events, and errors
+
+| Command | Purpose |
+| --- | --- |
+| `sig` / `sig-event` | Calculate a function selector / event topic0 |
+| `calldata` / `abi-encode` | Encode full calldata / ABI arguments only |
+| `decode-abi` / `decode-calldata` | Decode ABI output or function input |
+| `decode-event` / `decode-error` | Decode an event or custom error |
+| `decode-string` | Decode an ABI string |
+| `pretty-calldata` | Display calldata in a readable form |
+| `4byte` / `4byte-calldata` / `4byte-event` | Query OpenChain for selector, calldata, or topic0 candidates |
+| `upload-signature` | Upload function or event signatures to OpenChain |
+| `logs` | Query logs by event, topic, address, and block range |
+
+### Numbers, units, hashes, and conversion
+
+| Command | Purpose |
+| --- | --- |
+| `to-wei` / `from-wei` / `to-unit` | Convert among ether, gwei, and wei |
+| `parse-units` / `format-units` | Parse or format token values with arbitrary decimals |
+| `to-fixed-point` / `from-fixed-point` | Convert integers and fixed-point values |
+| `to-hex` / `to-dec` / `to-base` | Convert hexadecimal, decimal, and arbitrary bases |
+| `to-uint256` / `to-int256` | Encode 256-bit unsigned or signed integers |
+| `max-uint` / `max-int` / `min-int` | Print Solidity integer type boundaries |
+| `to-bytes32` / `format-bytes32-string` | Convert to bytes32 or encode a short string |
+| `parse-bytes32-string` / `parse-bytes32-address` | Recover a string or address from bytes32 |
+| `to-utf8` / `from-utf8` / `to-ascii` | Convert text and hexadecimal data |
+| `to-hexdata` / `concat-hex` / `from-bin` | Normalize, join, or convert hexadecimal data |
+| `to-rlp` / `from-rlp` | Encode and decode RLP |
+| `keccak` / `hash-message` | Compute Keccak-256 and EIP-191 message hashes |
+| `shl` / `shr` | Shift bits left or right |
+| `address-zero` / `hash-zero` | Print the zero address and zero hash |
+| `to-check-sum-address` | Convert an address to EIP-55 checksum form |
+
+### Address, ENS, wallet, and utility commands
+
+| Command | Purpose |
+| --- | --- |
+| `wallet` | Create/import/list accounts and perform wallet signing operations |
+| `resolve-name` / `lookup-address` | Perform forward and reverse ENS lookups |
+| `namehash` | Calculate an ENS namehash |
+| `recover-authority` | Recover an authority from EIP-7702 Authorization JSON |
+| `rpc` | Call any JSON-RPC method |
+| `completions` | Generate shell completion scripts |
+| `generate-fig-spec` | Generate a Fig completion specification |
+| `help` | Print Cast or subcommand help |
+
+---
+
+## 12. Common Solidity workflow recipes
+
+### Post-deployment smoke test
+
+```bash
+cast chain-id
+cast code "$CONTRACT"
+cast call "$CONTRACT" "owner()(address)"
+cast call "$CONTRACT" "paused()(bool)"
+cast implementation "$PROXY"
+```
+
+### Decimal-safe ERC-20 conversion
+
+Never assume every token uses 18 decimals:
+
+```bash
+DECIMALS=$(cast call "$TOKEN" "decimals()(uint8)")
+RAW=$(cast parse-units 1.5 "$DECIMALS")
+cast format-units "$RAW" "$DECIMALS"
+```
+
+### Check allowance before writing
+
+```bash
+cast call "$TOKEN" "allowance(address,address)(uint256)" "$USER" "$SPENDER"
+cast estimate "$TOKEN" "approve(address,uint256)" "$SPENDER" "$RAW" --from "$USER"
+cast send "$TOKEN" "approve(address,uint256)" "$SPENDER" "$RAW" --account deployer
+```
+
+### Compare historical state
+
+```bash
+cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER" --block 19000000
+cast call "$TOKEN" "balanceOf(address)(uint256)" "$USER" --block 19001000
+```
+
+Historical queries require an RPC with the corresponding archive state. A pruned node may return errors such as missing trie node or historical state unavailable.
+
+### Audit an RPC request with `--curl`
+
+Many RPC-backed commands support `--curl`, which prints an equivalent curl command without sending it:
+
+```bash
+cast balance "$USER" --curl
+```
+
+This is valuable for debugging proxy headers, reproducing provider issues, and learning the underlying JSON-RPC. Do not paste output containing authentication headers into a public issue.
+
+---
+
+## Summary
+
+Cast covers most command-line interaction across a Solidity contract's development and incident-response lifecycle:
+
+1. Read state with `call`, `balance`, `block`, and `storage`
+2. Control writes with `estimate`, `send`, and `receipt`
+3. Inspect ABI boundaries with `sig`, `calldata`, and `decode-*`
+4. Trace events and failures with `logs`, `tx`, and `run`
+5. Analyze proxies, storage, and bytecode with `implementation`, `index`, and `code`
+6. Avoid plaintext keys with `wallet`, hardware wallets, and keystores
+7. Turn temporary investigation into reproducible automation with `rpc` and `--json`
+
+The key skill is not memorizing every alias; it is respecting the boundary between reading, simulation, signing, broadcasting, and confirmation. Run `--help` before an unfamiliar operation, and simulate every mainnet write on a fork or testnet first.
+
+## References
+
+- [Foundry: Cast Overview](https://getfoundry.sh/cast/overview/)
+- [Foundry: Cast Command Reference](https://getfoundry.sh/cast/reference/cast/)
+- [Foundry: Cast RPC](https://getfoundry.sh/cast/reference/rpc/)
+- [Foundry: Cast Run](https://getfoundry.sh/cast/reference/run/)
+
