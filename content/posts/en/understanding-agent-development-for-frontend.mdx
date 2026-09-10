@@ -1,0 +1,277 @@
+export const metadata = {
+  title: "Understanding Agent Development as a Frontend Developer: From Buttons to AI Actions",
+  description: "Follow a simple blog assistant example to understand agents through familiar buttons, APIs, and UI state: how tools work, why execution loops matter, and what developers actually build.",
+  date: "2026-09-07",
+  slug: "understanding-agent-development-for-frontend",
+  lang: "en",
+  tags: ["ai", "agent", "frontend", "typescript", "llm"],
+  draft: false,
+}
+
+If you can build a page, call an API, and handle loading states, you already have a starting point for understanding agent development.
+
+Start with one sentence: **An agent application lets AI choose a next step toward the user's goal, then uses your code to execute it.**
+
+Understanding who chooses and who executes is the key. We will unpack the idea with a simple blog assistant.
+
+This article is about developing that application. You do not need to train a model first or begin by learning a collection of AI frameworks.
+
+---
+
+## 1. Start with a page you already know how to build
+
+Suppose you are building a blog management page with three features:
+
+- Click View Posts to display published articles.
+- Enter a keyword and click Search to find relevant content.
+- Edit an article and click Save Draft to save it.
+
+The query function for View Posts might look like this:
+
+```ts
+async function getPosts() {
+  const response = await fetch("/api/posts")
+
+  if (!response.ok) {
+    throw new Error("Failed to load posts")
+  }
+
+  return response.json()
+}
+```
+
+The user clicks a button, its event handler calls `getPosts()`, and the page displays the returned results.
+
+```text
+User clicks → Code calls an API → API returns data → Page displays it
+```
+
+When to query, what to search for, and whether to save are largely determined by user actions and the page flow you wrote.
+
+Now suppose we want the user to click fewer buttons and simply say:
+
+> Look at the articles I've already written and suggest three React topics I haven't covered.
+
+This brings us toward an agent use case: **the user describes an outcome, and the application needs to arrange the operations in between.**
+
+## 2. Is adding an AI chat box enough?
+
+Start with the simplest version: send the user's request to a model and display its answer.
+
+The model might suggest:
+
+> Write about getting started with React, useState, and useEffect.
+
+But your blog might already contain all three articles.
+
+**If the application has not given the model your article list, it has no reliable basis for knowing what you have covered.** A confident answer does not mean it actually queried the blog.
+
+You could write a fixed process:
+
+```text
+Query articles → Send the list and user request to the model → Get suggestions
+```
+
+If the requirement stays this simple, that can be enough.
+
+Now give it a little flexibility: when the model needs to know what exists, it can request the list. If titles are insufficient, it can request a particular article's body. This is where tools come in.
+
+## 3. A tool is a business capability you allow AI to request
+
+You already have a `getPosts()` function that queries articles.
+
+To expose it to the model, describe two things:
+
+- Its name: `getPosts`.
+- Its purpose: use it when you need to know which articles are already published on this site.
+
+If a tool accepts arguments, describe their names, types, and purposes too. A search tool, for example, needs a keyword.
+
+**The model receives a description and argument format. Your application still owns the function that performs the query.**
+
+Learning the name `getPosts` does not give the model direct database access.
+
+Through the model service's tool-calling mechanism, it returns a request resembling this:
+
+```json
+{
+  "name": "getPosts",
+  "arguments": {}
+}
+```
+
+This is a simplified illustration, not a complete response from a particular SDK.
+
+Your application checks whether the tool is allowed and its arguments are valid, then executes the corresponding function. Do not execute arbitrary generated code or treat unknown tool names as runnable commands.
+
+An interaction log makes the process clearer:
+
+```text
+User: Suggest three React topics I haven't covered.
+
+Model returns a tool request:
+getPosts()
+
+Application runs the query and returns:
+- Getting started with React
+- useState basics
+- useEffect basics
+
+Model returns a final answer:
+Consider lifting state up, component composition, and form state.
+Here is the problem each topic could help readers solve…
+```
+
+Notice that **the application actually performs the query in the middle**. Displaying “Searching articles” on a page does not, by itself, mean a search occurred.
+
+This process is called **tool calling**.
+
+For now, remember it this way:
+
+> A business capability that users previously triggered through a button can also be requested by AI.
+
+## 4. Why does it need a loop?
+
+The previous example queried once and returned an answer.
+
+Sometimes that is not enough. Suppose the list contains an article called React Practical Notes. Its title does not tell us whether it already covers form state.
+
+If you provide a `readPost` tool, the model can request its body:
+
+```text
+Round 1: Model requests getPosts.
+         Application returns the article list.
+
+Round 2: Model requests readPost for React Practical Notes.
+         Application returns its body, which already covers form state.
+
+Round 3: Model adjusts its suggestions using that content.
+         It returns three topics with explanations.
+```
+
+**A result from one round influences the action chosen in the next.** That is the central idea behind an agent execution loop.
+
+Your code coordinates it:
+
+```text
+Send the goal and available information to the model
+                        ↓
+             What did it return?
+              ↙               ↘
+        Tool request       Final answer
+              ↓                 ↓
+    Validate and execute   Show it to the user
+              ↓
+    Add the result to available information
+              ↓
+         Call the model again
+```
+
+This does not mean running indefinitely. Your application sets an execution limit and timeouts for calls. It can also pause to ask the user for missing information.
+
+For example, if the user has not specified a technical direction, the application can ask:
+
+> Would you prefer React fundamentals or practical project topics?
+
+You are therefore writing more than a request function. You are deciding when to continue, when to wait, and when to finish.
+
+## 5. What do the frontend, server, and model each do?
+
+Put the roles together:
+
+| Role | Responsibility in the blog assistant |
+| --- | --- |
+| User | State a goal, supply requirements, and review results |
+| Frontend | Receive input, display progress and results, and offer actions such as cancellation |
+| Server application | Call the model, validate and execute tools, and manage task continuation |
+| Model | Propose tool calls or generate answers using the information it receives |
+| Business APIs | Actually query articles, read their bodies, or save drafts |
+
+Their relationship looks like this:
+
+```text
+Frontend ←→ Server application ←→ Model
+                     ↕
+                Business APIs
+```
+
+In this example, model credentials and tool execution stay on the server. The browser mainly handles user interaction and does not need the model key.
+
+For frontend developers, much of the work remains familiar. The page just needs to represent more states:
+
+| Familiar frontend work | What changes in an agent page |
+| --- | --- |
+| Input field | Collect a goal describing what the user wants accomplished |
+| Loading indicator | Show specific progress such as querying posts or reading an article |
+| API error message | Explain which step failed and whether it can be retried |
+| Lists or cards | Present topics, explanations, and reference articles |
+| Form confirmation | Let the user review a draft before it is saved |
+| State management | Distinguish running, waiting for input, completed, failed, and cancelled |
+
+Progress should come from events that actually happened. Display “Found 5 articles” after the query returns five articles.
+
+Cancellation also requires frontend and backend cooperation: the page asks the server to stop the task, and the server attempts to abort active calls. Hiding the loading indicator does not mean the backend has stopped.
+
+If you own only the page, agree on task endpoints and states with the backend developer. If you build the whole application, you will also need to learn server-side model calls and tool execution.
+
+## 6. Can AI call any API it wants?
+
+Apply familiar backend authorization rules: **a request from a model still needs validation.**
+
+For example, when adding Save Draft:
+
+1. The server checks whether the current user has permission to save.
+2. It validates arguments such as the title and body.
+3. The page presents the proposed content for confirmation according to the product flow.
+4. After confirmation, the application calls the save API and reports success only when it succeeds.
+
+The model saying “the user agreed” cannot replace the application's confirmation record. Data matching a TypeScript type also does not guarantee that every argument is valid.
+
+Another detail is easy to miss: a timed-out save request may still have succeeded. Retries need to identify the same save operation so they do not create duplicate drafts.
+
+For your first exercise, expose only query and read tools. Learn how to obtain real information and generate an answer before adding writes. That keeps the flow easier to understand and debug.
+
+## 7. When is an agent useful, and when is a fixed process enough?
+
+Compare three features in the same blog:
+
+| Requirement | Possible implementation | Why |
+| --- | --- | --- |
+| Translate a Chinese title into English | One model call | The input and outcome are clear |
+| Query articles, summarize them, and translate the summaries | A fixed workflow | The main steps can be specified in advance |
+| Inspect existing content, read article bodies when unclear, then suggest topics | An agent | Later actions depend on what earlier queries reveal |
+
+This is a common engineering distinction: workflows arrange steps primarily through predefined code, while agents let the model participate in choosing the next step dynamically. [Reference: Anthropic — Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)
+
+A product can use both. Topic suggestions can involve flexible model decisions, while saving a draft follows a fixed validation and confirmation process.
+
+Ask yourself:
+
+> Can I determine the next operation in advance, or must I inspect the previous result to decide what to look up or do?
+
+Dynamic decisions are a reason to evaluate an agent. Ordinary code can branch on results too; the important question is whether the judgment suits a model and whether that improves outcomes over fixed rules.
+
+## 8. Learn four terms, then try a small exercise
+
+The terminology should now feel more concrete:
+
+- **Model**: an AI service that generates answers and can propose tool calls.
+- **Prompt**: instructions you give the model, such as “Suggest three beginner-friendly topics that have not already been covered.”
+- **Tool**: a capability the application allows the model to request, such as querying articles.
+- **Context**: information actually included in this model call, such as the user's requirements, the article list, and a body just retrieved.
+
+Context resembles data passed into a function: information visible on a page has not necessarily been sent to the model. To make the model consider the article list, your code needs to include that list in the request.
+
+RAG, MCP, long-term memory, and collaboration between multiple agents can wait until you need them. Tool calling and the execution loop are enough to start your first small feature.
+
+Try this sequence:
+
+1. Build an input field, send the user's question to a model, and display its reply.
+2. Expose a tool for querying existing articles so the model can request it.
+3. Return the query results to the model and have it suggest topics using them.
+4. Display querying and completed states, and handle query failures.
+5. Test an empty article list, tool errors, and duplicate suggestions against your expectations.
+
+Do not judge only how fluent the answer sounds. Inspect the task records: confirm that the tool ran, its data reached the model, and the suggestions do not obviously duplicate existing content.
+
+Your frontend experience remains useful throughout. API definitions determine available capabilities, state management determines what users see, and error handling determines what happens after failure. Agent development adds a process in which a model helps choose the next step.

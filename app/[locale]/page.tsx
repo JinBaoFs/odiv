@@ -34,7 +34,7 @@ export default async function HomePage() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations('Home');
   const projectT = await getTranslations('Projects');
-  const posts = (await listMdxPosts(locale)).filter((post) => post.featuredOnHome).sort(byHomeOrder).slice(0, 6);
+  const posts = (await listMdxPosts(locale)).slice(0, 6);
   const featuredProjects = projects.filter((project) => project.featuredOnHome).sort(byHomeOrder).slice(0, 6);
   const featuredTools = tools.filter((tool) => tool.featuredOnHome).sort(byHomeOrder).slice(0, 6);
 

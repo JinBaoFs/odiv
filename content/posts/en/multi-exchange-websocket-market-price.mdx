@@ -7,8 +7,6 @@ export const metadata = {
   lang: "en",
   tags: ["typescript", "websocket", "web3", "binance", "okx", "bybit"],
   draft: false,
-  featuredOnHome: true,
-  homeOrder: 2,
 }
 
 Market dashboards, portfolio lists, and trading screens often need live token prices from several exchanges. Creating a new `WebSocket` inside every component looks simple, but it quickly causes duplicate connections, inconsistent payloads, updates after unmount, and connections that never recover after a network interruption.
