@@ -13,6 +13,14 @@ export type ToolItem = {
 
 export const tools: ToolItem[] = [
   {
+    id: 'price-agent',
+    title: {zh: '加密货币价格小助手', en: 'Crypto Price Assistant'},
+    description: {zh: '用自然语言查询支持币种的参考报价与七天价格走势', en: 'Ask about supported coins’ reference quotes and seven days of price history'},
+    logoUrl: '/images/price-agent.svg',
+    linkUrl: '/price-agent',
+    featuredOnHome: true,
+  },
+  {
     id: 'chainlist',
     title: {zh: 'Chainlist', en: 'Chainlist'},
     description: {zh: '快速查找并添加 EVM 网络到钱包', en: 'Find and add EVM networks to your wallet'},

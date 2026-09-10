@@ -1,4 +1,67 @@
 {
+  "priceAgent": {
+    "eyebrow": "SPOT · PRICE ASSISTANT",
+    "title": "Ask a question. Explore crypto prices.",
+    "description": "Check a reference buying quote or explore the past week. The assistant reads real market data and explains the results.",
+    "askTitle": "What would you like to know?",
+    "exampleCoin": "Choose a coin for the example questions",
+    "currentPrompt": "Get the current {coin} price",
+    "historyPrompt": "Show {coin} prices for the last seven days",
+    "inputLabel": "Your question",
+    "placeholder": "For example: show Ethereum closing prices for the past seven days",
+    "singleTurn": "One coin per query, based on your question. If no coin is specified, the assistant will ask.",
+    "send": "Query prices",
+    "running": "Querying",
+    "cancel": "Cancel",
+    "costNote": "Market data uses public endpoints. AI calls use the site's DeepSeek account credits.",
+    "scopeTitle": "Available queries",
+    "scopeDescription": "Current reference buying quotes and seven days of daily closes for {coins}.",
+    "marketLabel": "Spot market",
+    "sourceLabel": "Data source",
+    "historyConvention": "History window",
+    "historyDays": "Seven complete UTC days",
+    "scopeNote": "No account balance access or trading. Quotes are for reference, not investment advice.",
+    "waiting": "Contacting the assistant and querying market data. Execution records will appear when this query finishes.",
+    "resultTitle": "Query results",
+    "quoteTitle": "{market} · Reference buying price",
+    "quoteNote": "Uses the current best ask. Execution at this price is not guaranteed for any quantity.",
+    "fetchedAt": "Retrieved",
+    "historyTitle": "{coin} · Past seven days of daily closes",
+    "range": "{start} to {end} · UTC · {unit}",
+    "missingDates": "No data for these dates; gaps remain in the chart: {dates}",
+    "chartLabel": "{coin} daily closing prices for seven complete UTC days. Exact values are available in the table below.",
+    "viewData": "View daily data",
+    "dateLabel": "Date (UTC)",
+    "closeLabel": "Close ({unit})",
+    "answerTitle": "Assistant explanation",
+    "traceTitle": "Execution records",
+    "traceNote": "Actual model requests and tool executions, without internal model reasoning.",
+    "usage": "{calls} model requests · Reported usage: {input} input / {output} output tokens",
+    "statuses": {"completed": "Completed", "partial": "Partially completed", "failed": "Query failed"},
+    "steps": {"model": "Model request", "validate": "Check tool arguments", "tool": "Query market data", "answer": "Generate explanation"},
+    "errors": {
+      "DISABLED": "The price assistant is not enabled yet. Contact the site administrator.",
+      "NOT_CONFIGURED": "Service setup is incomplete. Contact the site administrator.",
+      "ACCESS_DENIED": "This request origin is not supported. Try again from this site's page.",
+      "INVALID_INPUT": "Enter a question between 1 and 500 characters.",
+      "BUSY": "The assistant is handling another query. Try again shortly.",
+      "MODEL_AUTH": "Model authentication failed. The administrator should check the API key.",
+      "MODEL_BALANCE": "DeepSeek credits are insufficient. The administrator should check the account balance.",
+      "MODEL_LIMIT": "The model service is rate limited. Try again shortly.",
+      "MODEL_FAILED": "The model service is temporarily unavailable. Please retry later.",
+      "MODEL_RESPONSE": "The model response was incomplete or invalid. Please try another query.",
+      "MARKET_FAILED": "Market data is temporarily unavailable. Please retry later.",
+      "MARKET_DATA": "Market data had an unexpected format and was not used.",
+      "INVALID_TOOL": "The assistant requested an unavailable tool. Execution was blocked.",
+      "INVALID_ARGUMENTS": "Tool arguments were outside the supported scope. Execution was blocked.",
+      "MULTIPLE_MARKETS": "Only one coin is supported per query. Ask about different coins separately. Previously retrieved data is preserved.",
+      "LIMIT_REACHED": "This query reached its execution limit. Try a narrower question.",
+      "TIMEOUT": "The query timed out and further execution stopped. Please retry later.",
+      "CANCELLED": "Query cancelled. Model requests already made may still count toward usage.",
+      "NETWORK": "The connection was interrupted or the response was invalid. Check your connection and retry.",
+      "UNKNOWN": "The query could not be completed. Please retry later."
+    }
+  },
   "Common": {
     "language": "Language",
     "routeLoading": "The owl is taking you to the next page…"
@@ -13,6 +76,10 @@
     "owlAnimationLabel": "A sleepy owl perched on a branch, looking for a missing page"
   },
   "Seo": {
+    "priceAgent": {
+      "title": "Crypto Price Assistant",
+      "description": "Ask about supported coins' USDT reference buying quotes and seven days of daily closes, with sources, charts, and execution records."
+    },
     "home": {
       "title": "Frontend, Next.js and Web3 Blog",
       "description": "The personal technology blog of oDiv, covering frontend engineering, Next.js, Web3 development, open-source work, and real-world projects."

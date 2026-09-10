@@ -1,4 +1,67 @@
 {
+  "priceAgent": {
+    "eyebrow": "现货 · 价格小助手",
+    "title": "用一句话，了解币种价格",
+    "description": "查询当前买入参考价，或查看最近七天走势。助手读取真实行情，再给出简短说明。",
+    "askTitle": "你想了解什么？",
+    "exampleCoin": "选择快捷问题的币种",
+    "currentPrompt": "获取当前 {coin} 价格",
+    "historyPrompt": "查询最近七天 {coin} 价格",
+    "inputLabel": "你的问题",
+    "placeholder": "例如：帮我看看以太坊最近七天的收盘价",
+    "singleTurn": "每次查询一个币种，以输入内容为准；未指定币种时会询问。",
+    "send": "查询行情",
+    "running": "查询中",
+    "cancel": "取消",
+    "costNote": "行情来自公开接口；AI 调用按 DeepSeek 账户额度计费。",
+    "scopeTitle": "查询范围",
+    "scopeDescription": "支持 {coins} 的当前买入参考报价和最近七天每日收盘价。",
+    "marketLabel": "现货市场",
+    "sourceLabel": "行情来源",
+    "historyConvention": "历史口径",
+    "historyDays": "七个完整 UTC 自然日",
+    "scopeNote": "不读取账户余额，不执行交易。报价仅供参考，不构成投资建议。",
+    "waiting": "正在请求助手并查询行情。执行记录会在本次查询结束后显示。",
+    "resultTitle": "查询结果",
+    "quoteTitle": "{market} · 买入参考价",
+    "quoteNote": "采用当前盘口最优卖价，不保证任意数量都能以此价格成交。",
+    "fetchedAt": "查询时间",
+    "historyTitle": "{coin} 最近七天 · 每日收盘价",
+    "range": "{start} 至 {end} · UTC · {unit}",
+    "missingDates": "以下日期缺少数据，图表保留空缺：{dates}",
+    "chartLabel": "{coin} 最近七个完整 UTC 自然日收盘价折线图，详细数值可在下方表格查看",
+    "viewData": "查看每日数据",
+    "dateLabel": "日期（UTC）",
+    "closeLabel": "收盘价（{unit}）",
+    "answerTitle": "助手说明",
+    "traceTitle": "本次执行记录",
+    "traceNote": "记录实际模型请求和工具执行，不展示模型内部推理。",
+    "usage": "模型请求 {calls} 次 · 已返回用量：输入 {input} / 输出 {output} tokens",
+    "statuses": {"completed": "已完成", "partial": "部分完成", "failed": "查询失败"},
+    "steps": {"model": "模型请求", "validate": "检查工具参数", "tool": "执行行情查询", "answer": "生成结果说明"},
+    "errors": {
+      "DISABLED": "价格助手尚未开启，请联系站点管理员。",
+      "NOT_CONFIGURED": "服务配置尚未完成，请联系站点管理员。",
+      "ACCESS_DENIED": "请求来源不受支持，请从本站页面重试。",
+      "INVALID_INPUT": "请输入 1 至 500 个字符的问题。",
+      "BUSY": "助手正在处理其他查询，请稍后重试。",
+      "MODEL_AUTH": "模型服务认证失败，请管理员检查 API Key。",
+      "MODEL_BALANCE": "DeepSeek 可用额度不足，请管理员检查账户余额。",
+      "MODEL_LIMIT": "模型服务请求过于频繁，请稍后重试。",
+      "MODEL_FAILED": "暂时无法连接模型服务，请稍后重试。",
+      "MODEL_RESPONSE": "模型响应不完整或格式异常，请重新查询。",
+      "MARKET_FAILED": "暂时无法获取行情，请稍后重试。",
+      "MARKET_DATA": "行情数据格式异常，本次未使用这些数据。",
+      "INVALID_TOOL": "助手请求了未开放的工具，已阻止执行。",
+      "INVALID_ARGUMENTS": "工具参数不符合当前查询范围，已阻止执行。",
+      "MULTIPLE_MARKETS": "一次查询只支持一个币种，请将不同币种拆分提问。已获取的数据会保留。",
+      "LIMIT_REACHED": "本次查询已达到执行上限，请缩小问题范围后重试。",
+      "TIMEOUT": "查询超时，已停止继续执行。你可以稍后重试。",
+      "CANCELLED": "查询已取消。已经发生的模型调用仍可能计入用量。",
+      "NETWORK": "连接中断或响应异常，请检查网络后重试。",
+      "UNKNOWN": "查询暂时无法完成，请稍后重试。"
+    }
+  },
   "Common": {
     "language": "语言",
     "routeLoading": "猫头鹰正在带你前往新页面…"
@@ -13,6 +76,10 @@
     "owlAnimationLabel": "一只在树枝上打瞌睡的猫头鹰，正在寻找走失的页面"
   },
   "Seo": {
+    "priceAgent": {
+      "title": "加密货币价格小助手",
+      "description": "通过自然语言查询支持币种的 USDT 买入参考报价和最近七天收盘价，查看行情来源、图表与执行记录。"
+    },
     "home": {
       "title": "前端、Next.js 与 Web3 技术博客",
       "description": "oDiv 的个人技术博客，分享前端工程、Next.js、Web3 开发、开源项目与真实项目实践。"
