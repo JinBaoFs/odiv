@@ -1,0 +1,234 @@
+export const metadata = {
+  title: "Inside the Price Assistant: Agent Flow and Frontend–Backend Responsibilities",
+  description: "Follow this site's BTC, ETH, and SOL assistant from user input through prompts, tool calls, server validation, market requests, model explanations, and frontend rendering.",
+  date: "2026-07-13",
+  slug: "price-agent-guide",
+  lang: "en",
+  tags: ["agent", "frontend", "nextjs", "deepseek", "tool-calling"],
+  draft: false,
+}
+
+Enter “Get the current BTC price” and a price appears. A frontend developer could build a fixed button that calls a market endpoint directly. What does an Agent add to that interaction?
+
+This site's assistant asks a model to translate natural language into tool requests, then runs explicit business functions on the server. The model interprets the question and explains the result, the market API supplies prices, and the frontend presents cards and charts.
+
+This article follows the implementation in this repository. You can [open the price assistant](/en/price-agent) and compare its execution trace with the flow below.
+
+## 1. What the assistant supports
+
+| Feature | Example question | Actual behavior |
+| --- | --- | --- |
+| Current quote | Get the current BTC price | Retrieves the BTC/USDT best ask, with source, units, and retrieval time |
+| Historical prices | Show Ethereum prices for the last seven days | Retrieves ETH/USDT daily closes for seven complete UTC calendar days |
+| Combined query | Show the current SOL price and its seven-day history | Retrieves both datasets for the same coin in one task |
+| Chart and details | View a historical result | Displays a line chart, date range, daily table, and missing dates |
+| Execution trace | Expand the records after a query | Shows model requests, validation, tool execution, answer stages, and durations |
+
+Supported assets are BTC, ETH, and SOL, quoted in USDT. The model maps names such as “Bitcoin,” “Ethereum,” and “Solana” using aliases in the shared market configuration.
+
+The coin buttons change the example questions. They do not submit a separate coin parameter: if ETH is selected but the question asks for SOL, the submitted text determines the query.
+
+The current quote uses `askPrice` from Binance's `bookTicker`: the best ask, used as a reference buying quote. It is not a guaranteed execution price. `fetchedAt` records when this service retrieved the data, not when the exchange produced the quote. Results serve market lookup and engineering demonstration purposes.
+
+Each request supports one coin. Account balances, maximum purchasing capacity, and order placement are not implemented. A request such as “Get the BTC price and my balance to calculate how much I can buy” includes unsupported account and calculation work; the assistant cannot claim to have completed those parts.
+
+## 2. Prompt, Tool Call, and Agent mean different things
+
+| Concept | Meaning in this project | A frontend analogy |
+| --- | --- | --- |
+| Prompt | The question plus server-provided role, scope, and response rules | Requirements and constraints for a task |
+| Tool definition | A function name, purpose, and parameter schema | An interface description exposed to the model |
+| Tool call | A model-produced function name, arguments, and call ID | A structured request awaiting validation and execution |
+| Tool result | Data or an error produced by server execution | A business function's return value |
+| Agent Runner | The program managing model requests, tool execution, result messages, and termination | The control flow for the entire task |
+
+**A tool call does not execute code by itself.** Returning `getCurrentPrice` does not mean the model has accessed Binance. The lookup happens when server code validates the request and invokes the corresponding function.
+
+A fixed button for a fixed market could use the market API directly. The model adds a way to map varied questions to current, historical, or combined queries and explain their results. It also adds model latency and usage.
+
+## 3. Follow “Get the current BTC price” end to end
+
+The following is a typical successful query. Both model requests take place inside one browser request.
+
+```text
+User asks “Get the current BTC price”
+  ↓
+Browser sends POST /api/price-agent
+  ↓
+Server checks configuration, origin, input, and execution limits
+  ↓
+First DeepSeek request: rules + question + tool definitions
+  ↓
+Model returns a getCurrentPrice tool call
+  ↓
+Server validates the call → requests Binance → normalizes data
+  ↓
+Second DeepSeek request: original messages + call + matching result
+  ↓
+Model explains the result; server returns text, data, and trace
+  ↓
+Browser validates the response → renders the quote and explanation
+```
+
+### Step 1: The browser submits only a question and locale
+
+The business payload is small:
+
+```json
+{
+  "message": "Get the current BTC price",
+  "locale": "en"
+}
+```
+
+The frontend does not upload a model key or let the user supply system messages, tool definitions, or market URLs. It requests the site's `/api/price-agent`; both DeepSeek and Binance calls run on the Next.js server.
+
+The route checks whether the feature is enabled, whether a model key exists, and whether the JSON, question length, and locale are valid. The public version requires no access code. When an Origin header is present, the server checks it against the site's origin. That check is not user authentication.
+
+### Step 2: The server describes the available tools
+
+`prompt.ts` supplies the role, supported markets, current UTC time, response language, and business boundaries. For example, the model must use tools for prices instead of inventing quotes from memory, and should clarify an unspecified coin.
+
+`tools.ts` supplies separate tool definitions. The current-price tool has this parameter shape:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "enum": ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    }
+  },
+  "required": ["symbol"],
+  "additionalProperties": false
+}
+```
+
+The definition tells the model what it can request. Runtime validation controls what the application will actually execute. Providing a schema to the model does not remove the need for server checks.
+
+### Step 3: The model returns a proposed call
+
+A tool call might have the following shape. The ID is illustrative:
+
+```json
+{
+  "id": "call_price_1",
+  "type": "function",
+  "function": {
+    "name": "getCurrentPrice",
+    "arguments": "{\"symbol\":\"BTCUSDT\"}"
+  }
+}
+```
+
+`arguments` is a JSON string. The server parses it, checks the function whitelist and supported symbol, and rejects additional fields. There is no step that evaluates arbitrary code from model text.
+
+“Model analysis” here means selecting a tool and its parameters. The page displays the resulting execution records, not the model's internal reasoning.
+
+### Step 4: Server code performs the market request
+
+After validation, `executeTool` dispatches to `getCurrentPrice`. The market adapter requests this path:
+
+```text
+GET /api/v3/ticker/bookTicker?symbol=BTCUSDT
+```
+
+It then checks that the returned symbol matches and the price is valid. Successful data becomes the application's `quote`, containing `symbol`, `price`, `priceType`, `source`, and `fetchedAt`. This adapter keeps the exchange's response format from spreading into UI components.
+
+### Step 5: Return the tool result to the model
+
+The server preserves the model's assistant message and appends a tool message linked to the original call ID. The implementation uses this structure:
+
+```ts
+messages.push({
+  role: 'tool',
+  tool_call_id: call.id,
+  content: JSON.stringify(data),
+})
+```
+
+`tool_call_id` acts as a correlation ID: it identifies the request answered by this result. A failed execution produces an explicit error code instead of fabricated market data.
+
+The server sends the full message sequence to DeepSeek again. The model can now explain the actual tool result. If it returns no more tool calls, the loop ends. Additional tool calls can continue only within the Runner's limits.
+
+### Step 6: Render data and explanation separately
+
+The response contains `status`, `answer`, `data`, `trace`, and `usage`: task state, text, structured market data, execution records, and model usage.
+
+The quote card reads `data.quote.price`; the historical chart reads `data.history.points`. The frontend does not extract numbers from model prose with a regular expression or execute model-generated HTML as UI.
+
+**The model explains data; business components render validated data.** If the explanation stage fails after a successful lookup, the application can still display the valid market data as a partial result.
+
+## 4. Historical and combined queries
+
+“Show ETH prices for the last seven days” maps to:
+
+```json
+{
+  "name": "getPriceHistory",
+  "arguments": {
+    "symbol": "ETHUSDT",
+    "days": 7
+  }
+}
+```
+
+This example shows the parsed arguments. `days` currently accepts only `7`; server code calculates the actual dates rather than asking the model to supply them.
+
+For a request on **2026-07-13 UTC**, the range covers daily closes from **July 6 through July 12**. It excludes July 13 and does not represent a rolling 168-hour window. The market adapter requests `/api/v3/klines` with a daily interval and an end timestamp one millisecond before the exclusive boundary.
+
+Missing observations appear in `missingDates`. The chart preserves gaps instead of inserting zeros or invented prices.
+
+“Show the current SOL price and its seven-day history” requires two tools. The model may propose both in one response. The current executor runs them sequentially and returns each result with its matching call ID. It can also receive calls across model rounds, subject to the same total limits.
+
+For multiple coins, the prompt instructs the model to ask the user to choose one. If the model still proposes mixed-market calls, server validation rejects them. Supporting three coins in shared configuration does not imply a three-coin comparison response.
+
+## 5. Frontend and server responsibilities
+
+| Responsibility | Browser frontend | Next.js server |
+| --- | --- | --- |
+| Capture intent | Input, example questions, character count, locale | Validate the question and locale; accept only supported fields |
+| Manage interaction | Loading state, duplicate-submit prevention, cancellation, errors | Task timeouts, call budgets, and execution order |
+| Interpret requests | Submit the original question | Prepare prompts and definitions; call DeepSeek |
+| Execute business logic | Present returned data | Validate tool calls, run market functions, and check results |
+| Handle credentials | Hold no DeepSeek key | Read server environment variables and authenticate model requests |
+| Present outcomes | Validate responses; render cards, ECharts, tables, and traces | Return stable data structures, statuses, and sanitized error codes |
+
+The backend here consists of a Next.js Route Handler and `lib/price-agent`. It can deploy with the blog and does not require a separate backend repository. For a frontend developer, the main additions are server orchestration and validation; React state, asynchronous requests, and component rendering remain familiar work.
+
+The implementation uses `stream: false`. The UI shows a waiting state, then receives the trace with the completed response. The trace is not a live progress stream.
+
+Each question is also an independent task. Previous user conversations are not stored. After a clarification, the user should submit a complete question containing the coin and requested lookup; a follow-up such as “What about ETH?” has no previous messages to rely on. Multiple model rounds within one task are different from a multi-turn chat session.
+
+## 6. Failures, cancellation, and public access
+
+The Runner allows at most three model requests and four tool executions, with up to 800 output tokens per model request. It reserves a model round for reading tool results instead of executing more work on the final round without an opportunity to explain it.
+
+The task timeout is 45 seconds, individual model requests have 20 seconds, and market requests have 8 seconds. Cancellation aborts the browser fetch and is propagated through the server request signal. How quickly a deployment proxy reports disconnection depends on the environment; model calls already sent may still count toward usage.
+
+Responses have three possible statuses:
+
+- `completed`: Normal completion, which may also be a clarification message.
+- `partial`: Valid market data exists, but a later stage failed or historical dates are missing.
+- `failed`: The task failed without usable market data.
+
+The public version does not read `PRICE_AGENT_ACCESS_TOKEN`, so visitors need no access code. `DEEPSEEK_API_KEY` remains on the server, and all model calls use the site's account credits. The existing concurrency gate and two-second interval operate within one process. Distributed per-IP rate limits and a daily site-wide budget are not implemented.
+
+## 7. Where to read the code
+
+| File | What to look for |
+| --- | --- |
+| `config/price-agent.ts` | Shared markets, aliases, and quote units |
+| `app/[locale]/price-agent/page.tsx` | Server configuration checks and page entry |
+| `app/[locale]/price-agent/price-agent-client.tsx` | Submission, cancellation, state, and results |
+| `app/[locale]/price-agent/price-chart.tsx` | Charts, missing data, theme changes, and cleanup |
+| `app/api/price-agent/route.ts` | HTTP input validation and task entry |
+| `lib/price-agent/prompt.ts`, `tools.ts` | Model rules, tool definitions, and runtime argument validation |
+| `lib/price-agent/runner.ts` | Message history, call IDs, loops, and stopping conditions |
+| `lib/price-agent/deepseek.ts`, `market.ts` | Model and market service adapters |
+| `lib/price-agent/response.ts` | Browser-side response validation |
+
+Start at `route.ts`, follow `runAgent`, then locate `validateTool`, `executeTool`, and `messages.push`. Together, these connect intent interpretation, proposed calls, tool execution, result interpretation, and task completion into the full Agent flow.
+
+[Try the price assistant](/en/price-agent)

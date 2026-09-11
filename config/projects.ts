@@ -7,7 +7,7 @@ export type ProjectAction = {
 };
 
 export type ProjectItem = {
-  id: 'chaincatcher' | 'rootdata' | 'fomo-tool' | 'image-compressor' | 'dialect-world-dapp' | 'atb-dapp' | 'zz-admin';
+  id: 'chaincatcher' | 'rootdata' | 'price-agent' | 'fomo-tool' | 'image-compressor' | 'dialect-world-dapp' | 'atb-dapp' | 'zz-admin';
   name: string;
   followerCount: number;
   date: string;
@@ -34,6 +34,16 @@ export const projects: ProjectItem[] = [
     featuredOnHome: true,
     homeOrder: 2,
     actions: [{label: 'source', href: 'https://www.rootdata.com/', openInNewTab: true}],
+  },
+  {
+    id: 'price-agent',
+    name: 'Crypto Price Assistant',
+    followerCount: 325,
+    date: '2026-07-13',
+    actions: [
+      {label: 'demo', href: '/price-agent', openInNewTab: true},
+      {label: 'doc', href: '/blog/price-agent-guide', openInNewTab: true},
+    ],
   },
   {
     id: 'fomo-tool',

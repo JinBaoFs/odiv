@@ -180,6 +180,7 @@
     "items": {
       "chaincatcher": {"description": "专业的 Crypto 与 Fintech 资讯与研究平台"},
       "rootdata": {"description": "一个已服务超过 200 万用户的 Web3 资产数据平台"},
+      "price-agent": {"description": "基于 DeepSeek 工具调用的价格助手，支持 BTC、ETH、SOL 现价、七日收盘价图表与 Agent 执行记录"},
       "fomo-tool": {"description": "代币发行模拟器，预测价格走势和投资回报"},
       "image-compressor": {"description": "纯前端多图片压缩工具，支持进度、预览与下载"},
       "dialect-world-dapp": {"description": "已归档的 BSC DApp 前端，涵盖钱包登录、NFT 铸造与升级、DLW/USDT 兑换、奖励及团队数据展示"},

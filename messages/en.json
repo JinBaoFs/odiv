@@ -180,6 +180,7 @@
     "items": {
       "chaincatcher": {"description": "Professional Crypto & Fintech news and research platform."},
       "rootdata": {"description": "A Web3 asset data platform serving more than two million users."},
+      "price-agent": {"description": "A DeepSeek tool-calling assistant for BTC, ETH, and SOL quotes, seven-day closing-price charts, and Agent execution traces."},
       "fomo-tool": {"description": "Token issuance simulator for price trends and ROI prediction."},
       "image-compressor": {"description": "A client-side batch image compressor with progress, preview, and download support."},
       "dialect-world-dapp": {"description": "An archived BSC DApp frontend featuring wallet authentication, NFT minting and upgrades, DLW/USDT swaps, rewards, and team dashboards."},
