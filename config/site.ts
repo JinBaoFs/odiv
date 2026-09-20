@@ -1,6 +1,6 @@
 export const siteConfig = {
   name: 'oDiv',
-  url: 'https://odiv-three.vercel.app',
+  url: 'https://odivblog.com',
   title: 'oDiv',
   description: 'oDiv 的个人技术博客，记录前端工程、Next.js、Web3 开发与真实项目实践。',
   author: 'oDiv',
