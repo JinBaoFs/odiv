@@ -12,7 +12,7 @@ export async function Footer() {
         <FooterDonate />
       </div>
       <div className="btn-group">
-        <Link href="https://github.com/JinBaoFs" target='_blank' className="item-btn">
+        <Link href="https://t.me/oDivFs" target='_blank' className="item-btn">
           <Iconfont name="icon-tg" size={20} />
           <span>Telegram</span>
         </Link>
